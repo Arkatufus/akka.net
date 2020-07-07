@@ -1,27 +1,28 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Configuration;
 using Akka.Event;
+using Akka.Persistence.Sqlite.Tests.Internal;
+using Akka.Persistence.Sqlite.Tests.Internal.Journal;
+using Akka.Persistence.Sqlite.Tests.Internal.SnapshotStore;
 using Akka.Persistence.TestKit;
 using Akka.TestKit;
-using Akka.TestKit.Xunit2.Internals;
+using Akka.Util.Internal;
 using Xunit;
 using Xunit.Abstractions;
-using FluentAssertions;
 
-namespace Akka.Persistence.Tests
+namespace Akka.Persistence.Sqlite.Tests
 {
-    public class PersistentActorRecoveryTimeoutSpec2:PersistenceTestKit
+    public class BatchingSqlJournalFailure : SqlitePersistenceTestKit
     {
-        private static Config Config 
+        private static readonly AtomicCounter Counter = new AtomicCounter(0);
+
+        private static Config Config()
         {
-            get
-            {
-                var specString = $@"
+            return $@"
 akka {{
     loglevel = DEBUG
     stdout-loglevel = DEBUG
@@ -36,12 +37,14 @@ akka {{
     }}
     persistence {{
         journal {{
-            plugin = ""akka.persistence.journal.test""
-            auto-start-journals = [""akka.persistence.journal.test""]
-
-            test {{
-                class = ""Akka.Persistence.TestKit.TestJournal, Akka.Persistence.TestKit""
+            plugin = ""akka.persistence.journal.sqlite""
+            sqlite {{
+                class = ""Akka.Persistence.Sqlite.Tests.Internal.Journal.TestSqliteJournal, Akka.Persistence.Sqlite.Tests""
                 plugin-dispatcher = ""akka.actor.default-dispatcher""
+                table-name = event_journal
+                metadata-table-name = journal_metadata
+                auto-initialize = on
+                connection-string = ""Filename=file:memdb-journal-1.db;Mode=Memory;Cache=Shared""
 
 				circuit-breaker {{
 				    max-failures = 1
@@ -56,18 +59,20 @@ akka {{
         }}
 
         snapshot-store {{
-            plugin = ""akka.persistence.snapshot-store.test""
-            auto-start-snapshot-stores = [""akka.persistence.snapshot-store.test""]
-
-            test {{
-                class = ""Akka.Persistence.TestKit.TestSnapshotStore, Akka.Persistence.TestKit""
-                plugin-dispatcher = ""akka.actor.default-dispatcher""        
+            plugin = ""akka.persistence.snapshot-store.sqlite""
+            sqlite {{
+                class = ""Akka.Persistence.Sqlite.Tests.Internal.SnapshotStore.TestSqliteSnapshotStore, Akka.Persistence.Sqlite.Tests""
+                plugin-dispatcher = ""akka.actor.default-dispatcher""
+                table-name = snapshot_store
+                auto-initialize = on
+                connection-string = ""Filename=file:memdb-snapshot-store-1.db;Mode=Memory;Cache=Shared""
 
 				circuit-breaker {{
 				    max-failures = 1
 				    call-timeout = 3s
 				    reset-timeout = 3s
 			    }}
+
                 replay-filter {{
                     debug: true
                 }}
@@ -75,14 +80,11 @@ akka {{
         }}
     }}
 }}";
-
-                return ConfigurationFactory.ParseString(specString);
-            }
         }
 
         private readonly TestProbe _probe;
 
-        public PersistentActorRecoveryTimeoutSpec2(ITestOutputHelper output):base(Config, "BugTest", output)
+        public BatchingSqlJournalFailure(ITestOutputHelper output) : base(Config(), "BugTest", output)
         {
             _probe = CreateTestProbe();
         }
@@ -92,13 +94,12 @@ akka {{
         {
             var timeout = TimeSpan.FromHours(1);
 
-            var journalProbe = new JournalInspector(Output);
-            journalProbe.Next = JournalInterceptors.Noop.Instance;
+            Output.WriteLine("------------------------------ Setup");
+            var journalProbe = new JournalInspector(Output) { Next = JournalInterceptors.Noop.Instance };
             await Journal.OnWrite.SetInterceptorAsync(journalProbe);
             await Journal.OnRecovery.SetInterceptorAsync(journalProbe);
 
-            var snapshotProbe = new SnapshotInspector(Output);
-            snapshotProbe.Next = SnapshotStoreInterceptors.Noop.Instance;
+            var snapshotProbe = new SnapshotInspector(Output) { Next = SnapshotStoreInterceptors.Noop.Instance };
             await Snapshots.OnSave.SetInterceptorAsync(snapshotProbe);
             await Snapshots.OnLoad.SetInterceptorAsync(snapshotProbe);
 
@@ -111,32 +112,36 @@ akka {{
             _probe.ExpectMsg<SaveSnapshotSuccess>(timeout);
             // snapshot should be "snapshot"
 
-            actor.Tell(new PersistActor.WriteJournal("1"), TestActor);
-            _probe.ExpectMsg("1", timeout);
+            for (var i = 1; i < 6; ++i)
+            {
+                actor.Tell(new PersistActor.WriteJournal(i.ToString()), TestActor);
+                _probe.ExpectMsg(i.ToString(), timeout);
+            }
+            // Journal should contain 1, 2, 3, 4, 5
 
-            actor.Tell(new PersistActor.WriteJournal("2"), TestActor);
-            _probe.ExpectMsg("2", timeout);
-            // Journal should contain 1, 2
-
+            Output.WriteLine("------------------------------ Stop actor");
             await actor.GracefulStop(TimeSpan.FromSeconds(3));
             ExpectTerminated(actor, timeout);
 
             // Make snapshot fail once before succeeding
             snapshotProbe.Next = new SnapshotFailForXTimes(1);
 
+            Output.WriteLine("------------------------------ Trip circuit breaker");
             // Trigger recovery to trip the circuit breaker
             actor = ActorOf(() => new PersistActor(_probe));
             Watch(actor);
-            ExpectTerminated(actor);
+            ExpectTerminated(actor, timeout);
 
+            Output.WriteLine("------------------------------ Actor should die due to circuit breaker");
             // This actor should die because of circuit breaker is failing fast
             actor = ActorOf(() => new PersistActor(_probe));
             Watch(actor);
-            ExpectTerminated(actor);
+            ExpectTerminated(actor, timeout);
 
             // Circuit breaker reset timer is set to 3 seconds, wait a bit until it recover
-            await Task.Delay(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromSeconds(3));
 
+            Output.WriteLine("------------------------------ Actor is back up after circuit breaker reset");
             // This actor should survive
             actor = ActorOf(() => new PersistActor(_probe));
             Watch(actor);
@@ -184,7 +189,7 @@ akka {{
 
         public async Task InterceptAsync(IPersistentRepresentation message)
         {
-            _output.WriteLine($"[JournalInspector] message: {message}, payload: {message.Payload}");
+            _output.WriteLine($"[JournalInspector] message: {message}");
             await Next.InterceptAsync(message);
         }
     }
@@ -352,5 +357,4 @@ akka {{
             public object Message { get; }
         }
     }
-
 }

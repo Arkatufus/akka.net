@@ -246,7 +246,8 @@ namespace Akka.Persistence.Journal
 
             var readHighestSequenceNrFrom = Math.Max(0L, message.FromSequenceNr - 1);
             var promise = new TaskCompletionSource<long>();
-            _breaker.WithCircuitBreaker(() => ReadHighestSequenceNrAsync(message.PersistenceId, readHighestSequenceNrFrom))
+            _breaker.WithCircuitBreaker(() => 
+                    ReadHighestSequenceNrAsync(message.PersistenceId, readHighestSequenceNrFrom))
                 .ContinueWith(t =>
                 {
                     if (!t.IsFaulted && !t.IsCanceled)

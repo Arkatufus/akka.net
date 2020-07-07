@@ -216,7 +216,7 @@ namespace Akka.Persistence.Sql.Common.Journal
                                 replay.ReplyTo.Tell(new ReplayedTaggedMessage(adapted, replayedTagged.Tag, replayedTagged.Offset), ActorRefs.NoSender);
                             }
                         });
-                 }
+                }
             }
         }
 

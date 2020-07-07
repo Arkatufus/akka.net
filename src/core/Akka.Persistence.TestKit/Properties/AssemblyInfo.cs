@@ -23,3 +23,4 @@ using System.Runtime.InteropServices;
 
 [assembly: InternalsVisibleTo("Akka.Persistence.TestKit.Tests")]
 [assembly: InternalsVisibleTo("Akka.Persistence.Tests")]
+[assembly: InternalsVisibleTo("Akka.Persistence.Sqlite.Tests")]

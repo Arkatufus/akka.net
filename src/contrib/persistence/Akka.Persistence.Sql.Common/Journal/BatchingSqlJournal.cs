@@ -367,7 +367,7 @@ namespace Akka.Persistence.Sql.Common.Journal
             }
         }
 
-        private sealed class BatchComplete
+        protected sealed class BatchComplete
         {
             public readonly int ChunkId;
             public readonly int OperationCount;
@@ -390,7 +390,7 @@ namespace Akka.Persistence.Sql.Common.Journal
             private GetCurrentPersistenceIds() { }
         }
 
-        private struct RequestChunk
+        protected readonly struct RequestChunk
         {
             public readonly int ChunkId;
             public readonly IJournalRequest[] Requests;
@@ -662,20 +662,57 @@ namespace Akka.Persistence.Sql.Common.Journal
         /// <returns>TBD</returns>
         protected sealed override bool Receive(object message)
         {
-            if (message is WriteMessages) BatchRequest((IJournalRequest)message);
-            else if (message is ReplayMessages) BatchRequest((IJournalRequest)message);
-            else if (message is BatchComplete) CompleteBatch((BatchComplete)message);
-            else if (message is DeleteMessagesTo) BatchRequest((IJournalRequest)message);
-            else if (message is ReplayTaggedMessages) BatchRequest((IJournalRequest)message);
-            else if (message is SubscribePersistenceId) AddPersistenceIdSubscriber((SubscribePersistenceId)message);
-            else if (message is SubscribeAllPersistenceIds) AddAllSubscriber((SubscribeAllPersistenceIds)message);
-            else if (message is SubscribeTag) AddTagSubscriber((SubscribeTag)message);
-            else if (message is Terminated) RemoveSubscriber(((Terminated)message).ActorRef);
-            else if (message is GetCurrentPersistenceIds) InitializePersistenceIds();
-            else if (message is CurrentPersistenceIds) SendCurrentPersistenceIds((CurrentPersistenceIds)message);
-            else if (message is ChunkExecutionFailure) FailChunkExecution((ChunkExecutionFailure)message);
-            else return false;
-            return true;
+            return ReceiveWriteJournal(message) || ReceivePluginInternal(message);
+        }
+
+        private bool ReceiveWriteJournal(object message)
+        {
+            switch (message)
+            {
+                case WriteMessages _:
+                case ReplayMessages _:
+                case DeleteMessagesTo _:
+                case ReplayTaggedMessages _:
+                    BatchRequest((IJournalRequest)message);
+                    return true;
+                case BatchComplete m:
+                    CompleteBatch(m);
+                    return true;
+                case SubscribePersistenceId m:
+                    AddPersistenceIdSubscriber(m);
+                    return true;
+                case SubscribeAllPersistenceIds m:
+                    AddAllSubscriber(m);
+                    return true;
+                case SubscribeTag m:
+                    AddTagSubscriber(m);
+                    return true;
+                case Terminated m:
+                    RemoveSubscriber(m.ActorRef);
+                    return true;
+                case GetCurrentPersistenceIds _:
+                    InitializePersistenceIds();
+                    return true;
+                case CurrentPersistenceIds m:
+                    SendCurrentPersistenceIds(m);
+                    return true;
+                case ChunkExecutionFailure m:
+                    FailChunkExecution(m);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Plugin API: Allows plugin implementers to use f.PipeTo(Self)
+        /// and handle additional messages for implementing advanced features
+        /// </summary>
+        /// <param name="message">TBD</param>
+        /// <returns>TBD</returns>
+        protected virtual bool ReceivePluginInternal(object message)
+        {
+            return false;
         }
 
         private void FailChunkExecution(ChunkExecutionFailure message)
@@ -883,7 +920,7 @@ namespace Akka.Persistence.Sql.Common.Journal
             }
         }
 
-        private async Task<BatchComplete> ExecuteChunk(RequestChunk chunk, IActorContext context)
+        protected virtual async Task<BatchComplete> ExecuteChunk(RequestChunk chunk, IActorContext context)
         {
             Exception cause = null;
             var stopwatch = new Stopwatch();
