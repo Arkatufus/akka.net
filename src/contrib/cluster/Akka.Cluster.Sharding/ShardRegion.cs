@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Event;
 using Akka.Pattern;
+using Akka.Util;
 
 namespace Akka.Cluster.Sharding
 {
@@ -1073,6 +1074,61 @@ namespace Akka.Cluster.Sharding
 
                 TryCompleteGracefulShutdown();
             }
+        }
+    }
+
+    /// <summary>
+    /// Convenience implementation of <see cref="IMessageExtractor"/> that
+    /// construct ShardId based on the <see cref="object.GetHashCode"/> of the EntityId.
+    /// The number of unique shards is limited by the given MaxNumberOfShards.
+    /// </summary>
+    public abstract class HashCodeMessageExtractor : IMessageExtractor
+    {
+        /// <summary>
+        /// TBD
+        /// </summary>
+        public readonly int MaxNumberOfShards;
+
+        /// <summary>
+        /// TBD
+        /// </summary>
+        /// <param name="maxNumberOfShards">TBD</param>
+        protected HashCodeMessageExtractor(int maxNumberOfShards)
+        {
+            MaxNumberOfShards = maxNumberOfShards;
+        }
+
+        /// <summary>
+        /// TBD
+        /// </summary>
+        /// <param name="message">TBD</param>
+        /// <returns>TBD</returns>
+        public abstract string EntityId(object message);
+
+        /// <summary>
+        /// TBD
+        /// </summary>
+        /// <param name="message">TBD</param>
+        /// <returns>TBD</returns>
+        public virtual object EntityMessage(object message)
+        {
+            return message;
+        }
+
+        /// <summary>
+        /// TBD
+        /// </summary>
+        /// <param name="message">TBD</param>
+        /// <returns>TBD</returns>
+        public virtual string ShardId(object message)
+        {
+            EntityId id;
+            if (message is ShardRegion.StartEntity se)
+                id = se.EntityId;
+            else
+                id = EntityId(message);
+
+            return (Math.Abs(MurmurHash.StringHash(id)) % MaxNumberOfShards).ToString();
         }
     }
 }
