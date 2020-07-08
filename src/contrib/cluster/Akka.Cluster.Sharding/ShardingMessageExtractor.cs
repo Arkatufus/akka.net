@@ -82,4 +82,34 @@ namespace Akka.Cluster.Sharding
         public override string ToString()
             => $"HashCodeNoEnvelopeMessageExtractor({NumberOfShards})";
     }
+
+    /// <summary>
+    /// <para>Default envelope type that may be used with Cluster Sharding.</para>
+    /// <para>
+    /// Cluster Sharding provides a default [[HashCodeMessageExtractor]] that is able to handle
+    /// these types of messages, by hashing the entityId into into the shardId. It is not the only,
+    /// but a convenient way to send envelope-wrapped messages via cluster sharding.
+    /// </para>
+    /// <para>
+    /// The alternative way of routing messages through sharding is to not use envelopes,
+    /// and have the message types themselves carry identifiers.
+    /// </para>
+    /// </summary>
+    public sealed class ShardingEnvelope<T> where T : class?
+    {
+        public string EntityId { get; }
+        public T Message { get; }
+
+        /// <summary>
+        /// Create a new <see cref="ShardingEnvelope{T}"/>
+        /// </summary>
+        /// <param name="entityId">The business domain identifier of the entity.</param>
+        /// <param name="message">The message to be send to the entity.</param>
+        /// <exception cref="InvalidMessageException">Thrown when message is null</exception>
+        public ShardingEnvelope(string entityId, T message)
+        {
+            EntityId = entityId;
+            Message = message ?? throw new InvalidMessageException("[null] is not an allowed message.");
+        }
+    }
 }
