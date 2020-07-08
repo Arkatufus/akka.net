@@ -96,7 +96,7 @@ namespace Akka.Cluster.Sharding.Tests
             Cluster.Get(Sys).Join(Cluster.Get(Sys).SelfAddress);
 
             var probe = CreateTestProbe();
-            ShardedDaemonProcess.Get(Sys).Init("a", 5, id => MyActor.Props(id, probe.Ref));
+            ShardedDaemonProcessImpl.Get(Sys).Init("a", 5, id => MyActor.Props(id, probe.Ref));
 
             var started = probe.ReceiveN(5);
             started.Count.ShouldBe(5);
@@ -108,7 +108,7 @@ namespace Akka.Cluster.Sharding.Tests
             Cluster.Get(Sys).Join(Cluster.Get(Sys).SelfAddress);
 
             var probe = CreateTestProbe();
-            ShardedDaemonProcess.Get(Sys).Init("stop", 2, id => MyActor.Props(id, probe.Ref));
+            ShardedDaemonProcessImpl.Get(Sys).Init("stop", 2, id => MyActor.Props(id, probe.Ref));
 
             foreach (var started in Enumerable.Range(0, 2).Select(_ => probe.ExpectMsg<Started>()))
                 started.SelfRef.Tell(Stop.Instance);
@@ -124,7 +124,7 @@ namespace Akka.Cluster.Sharding.Tests
 
             var probe = CreateTestProbe();
             var settings = ShardedDaemonProcessSettings.Create(Sys).WithShardingSettings(ClusterShardingSettings.Create(Sys).WithRole("workers"));
-            ShardedDaemonProcess.Get(Sys).Init("roles", 3, id => MyActor.Props(id, probe.Ref), settings);
+            ShardedDaemonProcessImpl.Get(Sys).Init("roles", 3, id => MyActor.Props(id, probe.Ref), settings);
 
             probe.ExpectNoMsg();
         }
@@ -151,7 +151,7 @@ namespace Akka.Cluster.Sharding.Tests
         {
             #region tag-processing
             var tags = new[] { "tag-1", "tag-2", "tag-3" };
-            ShardedDaemonProcess.Get(Sys).Init("TagProcessors", tags.Length, id => TagProcessor.Props(tags[id]));
+            ShardedDaemonProcessImpl.Get(Sys).Init("TagProcessors", tags.Length, id => TagProcessor.Props(tags[id]));
             #endregion
         }
     }

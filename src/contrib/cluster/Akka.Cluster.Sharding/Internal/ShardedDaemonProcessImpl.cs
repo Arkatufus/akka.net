@@ -105,14 +105,14 @@ namespace Akka.Cluster.Sharding
     /// <para>Not for user extension.</para>
     /// </summary>
     [ApiMayChange]
-    public class ShardedDaemonProcess : IExtension
+    public class ShardedDaemonProcessImpl : IExtension
     {
         private readonly ExtendedActorSystem _system;
 
-        public ShardedDaemonProcess(ExtendedActorSystem system) => _system = system;
+        public ShardedDaemonProcessImpl(ExtendedActorSystem system) => _system = system;
 
-        public static ShardedDaemonProcess Get(ActorSystem system) =>
-            system.WithExtension<ShardedDaemonProcess, ShardedDaemonProcessExtensionProvider>();
+        public static ShardedDaemonProcessImpl Get(ActorSystem system) =>
+            system.WithExtension<ShardedDaemonProcessImpl, ShardedDaemonProcessExtensionProvider>();
 
         /// <summary>
         /// Start a specific number of actors that is then kept alive in the cluster.
@@ -172,8 +172,8 @@ namespace Akka.Cluster.Sharding
         }
     }
 
-    public class ShardedDaemonProcessExtensionProvider : ExtensionIdProvider<ShardedDaemonProcess>
+    public class ShardedDaemonProcessExtensionProvider : ExtensionIdProvider<ShardedDaemonProcessImpl>
     {
-        public override ShardedDaemonProcess CreateExtension(ExtendedActorSystem system) => new ShardedDaemonProcess(system);
+        public override ShardedDaemonProcessImpl CreateExtension(ExtendedActorSystem system) => new ShardedDaemonProcessImpl(system);
     }
 }
