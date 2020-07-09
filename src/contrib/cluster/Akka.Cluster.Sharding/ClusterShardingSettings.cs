@@ -6,6 +6,7 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Linq;
 using Akka.Actor;
 using Akka.Cluster.Tools.Singleton;
 using Akka.Configuration;
@@ -18,44 +19,44 @@ namespace Akka.Cluster.Sharding
     /// TBD
     /// </summary>
     [Serializable]
-    public class TunningParameters
+    public class TuningParameters
     {
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly TimeSpan CoordinatorFailureBackoff;
+        public TimeSpan CoordinatorFailureBackoff { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly TimeSpan RetryInterval;
+        public TimeSpan RetryInterval { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly int BufferSize;
+        public int BufferSize { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly TimeSpan HandOffTimeout;
+        public TimeSpan HandOffTimeout { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly TimeSpan ShardStartTimeout;
+        public TimeSpan ShardStartTimeout { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly TimeSpan ShardFailureBackoff;
+        public TimeSpan ShardFailureBackoff { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly TimeSpan EntityRestartBackoff;
+        public TimeSpan EntityRestartBackoff { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly TimeSpan RebalanceInterval;
+        public TimeSpan RebalanceInterval { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly int SnapshotAfter;
+        public int SnapshotAfter { get; }
         /// <summary>
         /// The shard deletes persistent events (messages and snapshots) after doing snapshot
         /// keeping this number of old persistent batches.
@@ -63,23 +64,25 @@ namespace Akka.Cluster.Sharding
         /// When set to 0 after snapshot is successfully done all messages with equal or lower sequence number will be deleted.
         /// Default value of 2 leaves last maximum 2*<see cref="SnapshotAfter"/> messages and 3 snapshots (2 old ones + fresh snapshot)
         /// </summary>
-        public readonly int KeepNrOfBatches;
+        public int KeepNrOfBatches { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly int LeastShardAllocationRebalanceThreshold;
+        public int LeastShardAllocationRebalanceThreshold { get; }
         /// <summary>
         /// TBD
         /// </summary>
-        public readonly int LeastShardAllocationMaxSimultaneousRebalance;
+        public int LeastShardAllocationMaxSimultaneousRebalance { get; }
 
-        public readonly TimeSpan WaitingForStateTimeout;
+        public TimeSpan WaitingForStateTimeout { get; }
 
-        public readonly TimeSpan UpdatingStateTimeout;
+        public TimeSpan UpdatingStateTimeout { get; }
 
-        public readonly string EntityRecoveryStrategy;
-        public readonly TimeSpan EntityRecoveryConstantRateStrategyFrequency;
-        public readonly int EntityRecoveryConstantRateStrategyNumberOfEntities;
+        public string EntityRecoveryStrategy { get; }
+        public TimeSpan EntityRecoveryConstantRateStrategyFrequency { get; }
+        public int EntityRecoveryConstantRateStrategyNumberOfEntities { get; }
+        public int CoordinatorStateWriteMajorityPlus { get; }
+        public int CoordinatorStateReadMajorityPlus { get; }
 
         /// <summary>
         /// TBD
@@ -101,11 +104,13 @@ namespace Akka.Cluster.Sharding
         /// <param name="entityRecoveryStrategy">TBD</param>
         /// <param name="entityRecoveryConstantRateStrategyFrequency">TBD</param>
         /// <param name="entityRecoveryConstantRateStrategyNumberOfEntities">TBD</param>
+        /// <param name="coordinatorStateWriteMajorityPlus">TBD</param>
+        /// <param name="coordinatorStateReadMajorityPlus">TBD</param>
         /// <exception cref="ArgumentException">
         /// This exception is thrown when the specified <paramref name="entityRecoveryStrategy"/> is invalid.
         /// Acceptable values include: all | constant
         /// </exception>
-        public TunningParameters(
+        public TuningParameters(
             TimeSpan coordinatorFailureBackoff,
             TimeSpan retryInterval,
             int bufferSize,
@@ -122,7 +127,9 @@ namespace Akka.Cluster.Sharding
             TimeSpan updatingStateTimeout,
             string entityRecoveryStrategy,
             TimeSpan entityRecoveryConstantRateStrategyFrequency,
-            int entityRecoveryConstantRateStrategyNumberOfEntities)
+            int entityRecoveryConstantRateStrategyNumberOfEntities,
+            int coordinatorStateWriteMajorityPlus,
+            int coordinatorStateReadMajorityPlus)
         {
             if (entityRecoveryStrategy != "all" && entityRecoveryStrategy != "constant")
                 throw new ArgumentException($"Unknown 'entity-recovery-strategy' [{entityRecoveryStrategy}], valid values are 'all' or 'constant'");
@@ -144,7 +151,124 @@ namespace Akka.Cluster.Sharding
             EntityRecoveryStrategy = entityRecoveryStrategy;
             EntityRecoveryConstantRateStrategyFrequency = entityRecoveryConstantRateStrategyFrequency;
             EntityRecoveryConstantRateStrategyNumberOfEntities = entityRecoveryConstantRateStrategyNumberOfEntities;
+            CoordinatorStateWriteMajorityPlus = coordinatorStateWriteMajorityPlus;
+            CoordinatorStateReadMajorityPlus = coordinatorStateReadMajorityPlus;
         }
+
+        [Obsolete("Use the ClusterShardingSettings factory methods or the constructor including coordinatorStateWriteMajorityPlus and coordinatorStateReadMajorityPlus instead")]
+        public TuningParameters(
+            TimeSpan coordinatorFailureBackoff,
+            TimeSpan retryInterval,
+            int bufferSize,
+            TimeSpan handOffTimeout,
+            TimeSpan shardStartTimeout,
+            TimeSpan shardFailureBackoff,
+            TimeSpan entityRestartBackoff,
+            TimeSpan rebalanceInterval,
+            int snapshotAfter,
+            int keepNrOfBatches,
+            int leastShardAllocationRebalanceThreshold,
+            int leastShardAllocationMaxSimultaneousRebalance,
+            TimeSpan waitingForStateTimeout,
+            TimeSpan updatingStateTimeout,
+            string entityRecoveryStrategy,
+            TimeSpan entityRecoveryConstantRateStrategyFrequency,
+            int entityRecoveryConstantRateStrategyNumberOfEntities) 
+            : this (
+                coordinatorFailureBackoff,
+                retryInterval,
+                bufferSize,
+                handOffTimeout,
+                shardStartTimeout,
+                shardFailureBackoff,
+                entityRestartBackoff,
+                rebalanceInterval,
+                snapshotAfter,
+                keepNrOfBatches,
+                leastShardAllocationRebalanceThreshold,
+                leastShardAllocationMaxSimultaneousRebalance,
+                waitingForStateTimeout,
+                updatingStateTimeout,
+                entityRecoveryStrategy,
+                entityRecoveryConstantRateStrategyFrequency,
+                entityRecoveryConstantRateStrategyNumberOfEntities,
+                5,
+                5
+            ) { }
+
+        [Obsolete("Use the ClusterShardingSettings factory methods or the full constructor instead")]
+        public TuningParameters(
+            TimeSpan coordinatorFailureBackoff,
+            TimeSpan retryInterval,
+            int bufferSize,
+            TimeSpan handOffTimeout,
+            TimeSpan shardStartTimeout,
+            TimeSpan shardFailureBackoff,
+            TimeSpan entityRestartBackoff,
+            TimeSpan rebalanceInterval,
+            int snapshotAfter,
+            int leastShardAllocationRebalanceThreshold,
+            int leastShardAllocationMaxSimultaneousRebalance,
+            TimeSpan waitingForStateTimeout,
+            TimeSpan updatingStateTimeout,
+            string entityRecoveryStrategy,
+            TimeSpan entityRecoveryConstantRateStrategyFrequency,
+            int entityRecoveryConstantRateStrategyNumberOfEntities) 
+            : this(
+                coordinatorFailureBackoff,
+                retryInterval,
+                bufferSize,
+                handOffTimeout,
+                shardStartTimeout,
+                shardFailureBackoff,
+                entityRestartBackoff,
+                rebalanceInterval,
+                snapshotAfter,
+                2,
+                leastShardAllocationRebalanceThreshold,
+                leastShardAllocationMaxSimultaneousRebalance,
+                waitingForStateTimeout,
+                updatingStateTimeout,
+                entityRecoveryStrategy,
+                entityRecoveryConstantRateStrategyFrequency,
+                entityRecoveryConstantRateStrategyNumberOfEntities
+            ) { }
+
+        [Obsolete("Use the ClusterShardingSettings factory methods or the full constructor instead")]
+        public TuningParameters(
+            TimeSpan coordinatorFailureBackoff,
+            TimeSpan retryInterval,
+            int bufferSize,
+            TimeSpan handOffTimeout,
+            TimeSpan shardStartTimeout,
+            TimeSpan shardFailureBackoff,
+            TimeSpan entityRestartBackoff,
+            TimeSpan rebalanceInterval,
+            int snapshotAfter,
+            int leastShardAllocationRebalanceThreshold,
+            int leastShardAllocationMaxSimultaneousRebalance,
+            TimeSpan waitingForStateTimeout,
+            TimeSpan updatingStateTimeout)
+            : this(
+                coordinatorFailureBackoff,
+                retryInterval,
+                bufferSize,
+                handOffTimeout,
+                shardStartTimeout,
+                shardFailureBackoff,
+                entityRestartBackoff,
+                rebalanceInterval,
+                snapshotAfter,
+                2,
+                leastShardAllocationRebalanceThreshold,
+                leastShardAllocationMaxSimultaneousRebalance,
+                waitingForStateTimeout,
+                updatingStateTimeout,
+                "all",
+                TimeSpan.FromMilliseconds(100),
+                5
+            )
+        { }
     }
 
     public enum StateStoreMode
@@ -159,56 +283,8 @@ namespace Akka.Cluster.Sharding
     [Serializable]
     public sealed class ClusterShardingSettings : INoSerializationVerificationNeeded
     {
-        /// <summary>
-        /// Specifies that this entity type requires cluster nodes with a specific role.
-        /// If the role is not specified all nodes in the cluster are used.
-        /// </summary>
-        public readonly string Role;
-
-        /// <summary>
-        /// True if active entity actors shall be automatically restarted upon <see cref="Shard"/> restart.i.e.
-        /// if the <see cref="Shard"/> is started on a different <see cref="ShardRegion"/> due to rebalance or crash.
-        /// </summary>
-        public readonly bool RememberEntities;
-
-        /// <summary>
-        /// Absolute path to the journal plugin configuration entity that is to be used for the internal
-        /// persistence of ClusterSharding.If not defined the default journal plugin is used. Note that
-        /// this is not related to persistence used by the entity actors.
-        /// </summary>
-        public readonly string JournalPluginId;
-
-        /// <summary>
-        /// Absolute path to the snapshot plugin configuration entity that is to be used for the internal persistence
-        /// of ClusterSharding. If not defined the default snapshot plugin is used.Note that this is not related
-        /// to persistence used by the entity actors.
-        /// </summary>
-        public readonly string SnapshotPluginId;
-
-        /// <summary>
-        /// Passivate entities that have not received any message in this interval.
-        /// Note that only messages sent through sharding are counted, so direct messages
-        /// to the <see cref="IActorRef"/> of the actor or messages that it sends to itself are not counted as activity.
-        /// Use 0 to disable automatic passivation. It is always disabled if `RememberEntities` is enabled.
-        /// </summary>
-        public readonly TimeSpan PassivateIdleEntityAfter;
-
-        public readonly StateStoreMode StateStoreMode;
-
-        /// <summary>
-        /// Additional tuning parameters, see descriptions in reference.conf
-        /// </summary>
-        public readonly TunningParameters TunningParameters;
-
-        /// <summary>
-        /// TBD
-        /// </summary>
-        public readonly ClusterSingletonManagerSettings CoordinatorSingletonSettings;
-
-        /// <summary>
-        /// TBD
-        /// </summary>
-        public readonly LeaseUsageSettings LeaseSettings;
+        private const string StateStoreModePersistence = "persistence";
+        private const string StateStoreModeDData = "ddata";
 
         /// <summary>
         /// Create settings from the default configuration `akka.cluster.sharding`.
@@ -216,28 +292,103 @@ namespace Akka.Cluster.Sharding
         /// <param name="system">TBD</param>
         /// <returns>TBD</returns>
         public static ClusterShardingSettings Create(ActorSystem system)
-        {
-            var config = system.Settings.Config.GetConfig("akka.cluster.sharding");
-            if (config.IsNullOrEmpty())
-                throw ConfigurationException.NullOrEmptyConfig<ClusterShardingSettings>("akka.cluster.sharding");
+            => Apply(system);
 
-            var coordinatorSingletonPath = config.GetString("coordinator-singleton");
+        /// <summary>
+        /// Create settings from the default configuration `akka.cluster.sharding`.
+        /// </summary>
+        /// <param name="system"></param>
+        /// <returns></returns>
+        public static ClusterShardingSettings Apply(ActorSystem system)
+            => Apply(system.Settings.Config.GetConfig("akka.cluster.sharding"));
 
-            return Create(config, system.Settings.Config.GetConfig(coordinatorSingletonPath));
-        }
+        /// <summary>
+        /// Create settings from a configuration with the same layout as
+        /// the default configuration `akka.cluster.sharding`.
+        /// </summary>
+        /// <param name="config"></param>
+        /// <returns></returns>
+        public static ClusterShardingSettings Apply(Config config)
+            => new ClusterShardingSettings(config);
+
+        /// <summary>
+        /// Specifies that this entity type requires cluster nodes with a specific role.
+        /// If the role is not specified all nodes in the cluster are used.
+        /// </summary>
+        public string Role { get; }
+
+        /// <summary>
+        /// True if active entity actors shall be automatically restarted upon <see cref="Shard"/> restart.i.e.
+        /// if the <see cref="Shard"/> is started on a different <see cref="ShardRegion"/> due to rebalance or crash.
+        /// </summary>
+        public bool RememberEntities { get; }
+
+        /// <summary>
+        /// Absolute path to the journal plugin configuration entity that is to be used for the internal
+        /// persistence of ClusterSharding.If not defined the default journal plugin is used. Note that
+        /// this is not related to persistence used by the entity actors.
+        /// </summary>
+        public string JournalPluginId { get; }
+
+        /// <summary>
+        /// Absolute path to the snapshot plugin configuration entity that is to be used for the internal persistence
+        /// of ClusterSharding. If not defined the default snapshot plugin is used.Note that this is not related
+        /// to persistence used by the entity actors.
+        /// </summary>
+        public string SnapshotPluginId { get; }
+
+        public StateStoreMode StateStoreMode { get; }
+
+        /// <summary>
+        /// Passivate entities that have not received any message in this interval.
+        /// Note that only messages sent through sharding are counted, so direct messages
+        /// to the <see cref="IActorRef"/> of the actor or messages that it sends to itself are not counted as activity.
+        /// Use 0 to disable automatic passivation. It is always disabled if `RememberEntities` is enabled.
+        /// </summary>
+        public TimeSpan PassivateIdleEntityAfter { get; }
+
+        public TimeSpan ShardRegionQueryTimeout { get; }
+
+        /// <summary>
+        /// Additional tuning parameters, see descriptions in reference.conf
+        /// </summary>
+        public TuningParameters TuningParameters { get; }
+
+        /// <summary>
+        /// TBD
+        /// </summary>
+        public ClusterSingletonManagerSettings CoordinatorSingletonSettings { get; }
+
+        /// <summary>
+        /// TBD
+        /// </summary>
+        public LeaseUsageSettings LeaseSettings { get; }
 
         /// <summary>
         /// TBD
         /// </summary>
         /// <param name="config">TBD</param>
-        /// <param name="singletonConfig">TBD</param>
         /// <returns>TBD</returns>
-        public static ClusterShardingSettings Create(Config config, Config singletonConfig)
+        public static ClusterShardingSettings Create(Config config)
+            => new ClusterShardingSettings(config);
+
+        public ClusterShardingSettings(Config config)
         {
             if (config.IsNullOrEmpty())
-                throw ConfigurationException.NullOrEmptyConfig<ClusterShardingSettings>();
+                throw ConfigurationException.NullOrEmptyConfig<ClusterShardingSettings>("akka.cluster.sharding");
 
-            var tuningParameters = new TunningParameters(
+            var singletonConfig = config.GetConfig("coordinator-singleton");
+            if(singletonConfig.IsNullOrEmpty())
+                throw ConfigurationException.NullOrEmptyConfig<ClusterShardingSettings>("akka.cluster.sharding.coordinator-singleton");
+
+            int ConfigMajorityPlus(string p)
+            {
+                if (config.GetString(p).Equals("all", StringComparison.InvariantCultureIgnoreCase))
+                    return int.MaxValue;
+                return config.GetInt(p);
+            }
+
+            var tuningParameters = new TuningParameters(
                 coordinatorFailureBackoff: config.GetTimeSpan("coordinator-failure-backoff"),
                 retryInterval: config.GetTimeSpan("retry-interval"),
                 bufferSize: config.GetInt("buffer-size"),
@@ -254,11 +405,11 @@ namespace Akka.Cluster.Sharding
                 updatingStateTimeout: config.GetTimeSpan("updating-state-timeout"),
                 entityRecoveryStrategy: config.GetString("entity-recovery-strategy"),
                 entityRecoveryConstantRateStrategyFrequency: config.GetTimeSpan("entity-recovery-constant-rate-strategy.frequency"),
-                entityRecoveryConstantRateStrategyNumberOfEntities: config.GetInt("entity-recovery-constant-rate-strategy.number-of-entities"));
+                entityRecoveryConstantRateStrategyNumberOfEntities: config.GetInt("entity-recovery-constant-rate-strategy.number-of-entities"),
+                coordinatorStateWriteMajorityPlus: ConfigMajorityPlus("coordinator-state.write-majority-plus"),
+                coordinatorStateReadMajorityPlus: ConfigMajorityPlus("coordinator-state.read-majority-plus"));
 
             var coordinatorSingletonSettings = ClusterSingletonManagerSettings.Create(singletonConfig);
-            var role = config.GetString("role", null);
-            if (role == string.Empty) role = null;
 
             var usePassivateIdle = config.GetString("passivate-idle-entity-after").ToLowerInvariant();
             var passivateIdleAfter =
@@ -273,52 +424,113 @@ namespace Akka.Cluster.Sharding
             if (!string.IsNullOrEmpty(leaseConfigPath))
                 lease = new LeaseUsageSettings(leaseConfigPath, config.GetTimeSpan("lease-retry-interval"));
 
-            return new ClusterShardingSettings(
-                role: role,
-                rememberEntities: config.GetBoolean("remember-entities"),
-                journalPluginId: config.GetString("journal-plugin-id"),
-                snapshotPluginId: config.GetString("snapshot-plugin-id"),
-                passivateIdleEntityAfter: passivateIdleAfter,
-                stateStoreMode: (StateStoreMode)Enum.Parse(typeof(StateStoreMode), config.GetString("state-store-mode"), ignoreCase: true),
-                tunningParameters: tuningParameters,
-                coordinatorSingletonSettings: coordinatorSingletonSettings,
-                leaseSettings: lease);
+            Role = config.GetString("role", null);
+            if (Role == string.Empty) Role = null;
+
+            RememberEntities = config.GetBoolean("remember-entities");
+            JournalPluginId = config.GetString("journal-plugin-id");
+            SnapshotPluginId = config.GetString("snapshot-plugin-id");
+
+            var stateStoreMode = config.GetString("state-store-mode").ToLowerInvariant();
+            if(stateStoreMode != StateStoreModePersistence && stateStoreMode != StateStoreModeDData)
+                throw new ConfigurationException($"Unknown 'state-store-mode' [{stateStoreMode}], valid values are '{StateStoreModeDData}' or '{StateStoreModePersistence}'");
+            StateStoreMode = (StateStoreMode)Enum.Parse(typeof(StateStoreMode), stateStoreMode, ignoreCase: true);
+
+            PassivateIdleEntityAfter = passivateIdleAfter;
+            ShardRegionQueryTimeout = config.GetTimeSpan("shard-region-query-timeout");
+            // TuningParameters =
+            CoordinatorSingletonSettings = coordinatorSingletonSettings;
+            LeaseSettings = lease;
         }
 
-        /// <summary>
-        /// TBD
-        /// </summary>
-        /// <param name="role">TBD</param>
-        /// <param name="rememberEntities">TBD</param>
-        /// <param name="journalPluginId">TBD</param>
-        /// <param name="snapshotPluginId">TBD</param>
-        /// <param name="passivateIdleEntityAfter">TBD</param>
-        /// <param name="stateStoreMode">TBD</param>
-        /// <param name="tunningParameters">TBD</param>
-        /// <param name="coordinatorSingletonSettings">TBD</param>
+        [Obsolete("Use the ClusterShardingSettings factory methods or the constructor including shardRegionQueryTimeout instead")]
         public ClusterShardingSettings(
             string role,
             bool rememberEntities,
             string journalPluginId,
             string snapshotPluginId,
-            TimeSpan passivateIdleEntityAfter,
             StateStoreMode stateStoreMode,
-            TunningParameters tunningParameters,
+            TimeSpan passivateIdleEntityAfter,
+            TuningParameters tuningParameters,
+            ClusterSingletonManagerSettings coordinatorSingletonSettings,
+            LeaseUsageSettings leaseSettings)
+            : this(
+                role, 
+                rememberEntities, 
+                journalPluginId, 
+                snapshotPluginId,
+                stateStoreMode,
+                passivateIdleEntityAfter, 
+                TimeSpan.FromSeconds(3),
+                tuningParameters, 
+                coordinatorSingletonSettings, 
+                leaseSettings)
+        { }
+
+        [Obsolete("Use the ClusterShardingSettings factory methods or the constructor including shardRegionQueryTimeout instead")]
+        public ClusterShardingSettings(
+            string role,
+            bool rememberEntities,
+            string journalPluginId,
+            string snapshotPluginId,
+            StateStoreMode stateStoreMode,
+            TimeSpan passivateIdleEntityAfter,
+            TuningParameters tuningParameters,
             ClusterSingletonManagerSettings coordinatorSingletonSettings)
-            : this(role, rememberEntities, journalPluginId, snapshotPluginId, passivateIdleEntityAfter, stateStoreMode, tunningParameters, coordinatorSingletonSettings, null)
-        {
-        }
+            : this(
+                role,
+                rememberEntities,
+                journalPluginId,
+                snapshotPluginId,
+                stateStoreMode,
+                passivateIdleEntityAfter,
+                tuningParameters,
+                coordinatorSingletonSettings,
+                null)
+        { }
+
+        [Obsolete("Use the ClusterShardingSettings factory methods or the constructor including passivateIdleEntityAfter instead")]
+        public ClusterShardingSettings(
+            string role,
+            bool rememberEntities,
+            string journalPluginId,
+            string snapshotPluginId,
+            StateStoreMode stateStoreMode,
+            TuningParameters tuningParameters,
+            ClusterSingletonManagerSettings coordinatorSingletonSettings)
+            : this(
+                role,
+                rememberEntities,
+                journalPluginId,
+                snapshotPluginId,
+                stateStoreMode,
+                TimeSpan.Zero,
+                tuningParameters,
+                coordinatorSingletonSettings)
+        { }
 
         /// <summary>
         /// TBD
         /// </summary>
-        /// <param name="role">TBD</param>
-        /// <param name="rememberEntities">TBD</param>
-        /// <param name="journalPluginId">TBD</param>
-        /// <param name="snapshotPluginId">TBD</param>
-        /// <param name="passivateIdleEntityAfter">TBD</param>
+        /// <param name="role">specifies that this entity type requires cluster nodes with a specific role.
+        ///   If the role is not specified all nodes in the cluster are used.</param>
+        /// <param name="rememberEntities">true if active entity actors shall be automatically restarted upon `Shard`
+        ///   restart.i.e. if the `Shard` is started on a different `ShardRegion` due to rebalance or crash.</param>
+        /// <param name="journalPluginId">Absolute path to the journal plugin configuration entity that is to
+        ///   be used for the internal persistence of ClusterSharding.If not defined the default
+        ///   journal plugin is used.Note that this is not related to persistence used by the entity
+        ///   actors.</param>
+        /// <param name="snapshotPluginId">Absolute path to the snapshot plugin configuration entity that is to
+        ///   be used for the internal persistence of ClusterSharding.If not defined the default
+        ///   snapshot plugin is used.Note that this is not related to persistence used by the entity
+        ///   actors.</param>
+        /// <param name="passivateIdleEntityAfter">Passivate entities that have not received any message in this interval.
+        ///   Note that only messages sent through sharding are counted, so direct messages
+        ///   to the `ActorRef` of the actor or messages that it sends to itself are not counted as activity.
+        ///   Use 0 to disable automatic passivation.It is always disabled if `rememberEntities` is enabled.</param>
+        /// <param name="shardRegionQueryTimeout">the timeout for querying a shard region, see descriptions in reference.conf</param>
         /// <param name="stateStoreMode">TBD</param>
-        /// <param name="tunningParameters">TBD</param>
+        /// <param name="tuningParameters">additional tuning parameters, see descriptions in reference.conf</param>
         /// <param name="coordinatorSingletonSettings">TBD</param>
         /// <param name="leaseSettings">TBD</param>
         public ClusterShardingSettings(
@@ -326,9 +538,10 @@ namespace Akka.Cluster.Sharding
             bool rememberEntities,
             string journalPluginId,
             string snapshotPluginId,
-            TimeSpan passivateIdleEntityAfter,
             StateStoreMode stateStoreMode,
-            TunningParameters tunningParameters,
+            TimeSpan passivateIdleEntityAfter,
+            TimeSpan shardRegionQueryTimeout,
+            TuningParameters tuningParameters,
             ClusterSingletonManagerSettings coordinatorSingletonSettings,
             LeaseUsageSettings leaseSettings)
         {
@@ -337,8 +550,9 @@ namespace Akka.Cluster.Sharding
             JournalPluginId = journalPluginId;
             SnapshotPluginId = snapshotPluginId;
             PassivateIdleEntityAfter = passivateIdleEntityAfter;
+            ShardRegionQueryTimeout = shardRegionQueryTimeout;
             StateStoreMode = stateStoreMode;
-            TunningParameters = tunningParameters;
+            TuningParameters = tuningParameters;
             CoordinatorSingletonSettings = coordinatorSingletonSettings;
             LeaseSettings = leaseSettings;
         }
@@ -366,6 +580,11 @@ namespace Akka.Cluster.Sharding
         public ClusterShardingSettings WithRole(string role)
         {
             return Copy(role: role);
+        }
+
+        public ClusterShardingSettings WithRole(Option<string> role)
+        {
+            return Copy(role: role.Value);
         }
 
         /// <summary>
@@ -406,23 +625,26 @@ namespace Akka.Cluster.Sharding
         /// <summary>
         /// TBD
         /// </summary>
-        /// <param name="tunningParameters">TBD</param>
+        /// <param name="tuningParameters">TBD</param>
         /// <exception cref="ArgumentNullException">
-        /// This exception is thrown when the specified <paramref name="tunningParameters"/> is undefined.
+        /// This exception is thrown when the specified <paramref name="tuningParameters"/> is undefined.
         /// </exception>
         /// <returns>TBD</returns>
-        public ClusterShardingSettings WithTuningParameters(TunningParameters tunningParameters)
+        public ClusterShardingSettings WithTuningParameters(TuningParameters tuningParameters)
         {
-            if (tunningParameters == null)
-                throw new ArgumentNullException(nameof(tunningParameters), $"ClusterShardingSettings requires {nameof(tunningParameters)} to be provided");
+            if (tuningParameters == null)
+                throw new ArgumentNullException(nameof(tuningParameters), $"ClusterShardingSettings requires {nameof(tuningParameters)} to be provided");
 
-            return Copy(tunningParameters: tunningParameters);
+            return Copy(tuningParameters: tuningParameters);
         }
 
         public ClusterShardingSettings WithPassivateIdleAfter(TimeSpan duration)
         {
             return Copy(passivateIdleAfter: duration);
         }
+
+        public ClusterShardingSettings WithShardRegionQueryTimeout(TimeSpan duration)
+            => Copy(shardRegionQueryTimeout: duration);
 
         public ClusterShardingSettings WithLeaseSettings(LeaseUsageSettings leaseSettings)
         {
@@ -451,8 +673,9 @@ namespace Akka.Cluster.Sharding
             string journalPluginId = null,
             string snapshotPluginId = null,
             TimeSpan? passivateIdleAfter = null,
+            TimeSpan? shardRegionQueryTimeout = null,
             StateStoreMode? stateStoreMode = null,
-            TunningParameters tunningParameters = null,
+            TuningParameters tuningParameters = null,
             ClusterSingletonManagerSettings coordinatorSingletonSettings = null,
             Option<LeaseUsageSettings> leaseSettings = default)
         {
@@ -462,8 +685,9 @@ namespace Akka.Cluster.Sharding
                 journalPluginId: journalPluginId ?? JournalPluginId,
                 snapshotPluginId: snapshotPluginId ?? SnapshotPluginId,
                 passivateIdleEntityAfter: passivateIdleAfter ?? PassivateIdleEntityAfter,
+                shardRegionQueryTimeout: shardRegionQueryTimeout ?? ShardRegionQueryTimeout,
                 stateStoreMode: stateStoreMode ?? StateStoreMode,
-                tunningParameters: tunningParameters ?? TunningParameters,
+                tuningParameters: tuningParameters ?? TuningParameters,
                 coordinatorSingletonSettings: coordinatorSingletonSettings ?? CoordinatorSingletonSettings,
                 leaseSettings: leaseSettings.HasValue ? leaseSettings.Value : LeaseSettings);
         }
