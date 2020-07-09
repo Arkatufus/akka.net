@@ -1085,6 +1085,18 @@ namespace Akka.Cluster.Sharding
     public abstract class HashCodeMessageExtractor : IMessageExtractor
     {
         /// <summary>
+        /// INTERNAL API
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="maxNumberOfShards"></param>
+        /// <returns></returns>
+        // It would be better to have abs(id.hashCode % maxNumberOfShards), see issue #25034
+        // but to avoid getting different values when rolling upgrade we keep the old way,
+        // and it doesn't have any serious consequences
+        internal static string ShardId(string id, int maxNumberOfShards)
+            => (Math.Abs(id.GetHashCode()) % maxNumberOfShards).ToString();
+
+        /// <summary>
         /// TBD
         /// </summary>
         public readonly int MaxNumberOfShards;
