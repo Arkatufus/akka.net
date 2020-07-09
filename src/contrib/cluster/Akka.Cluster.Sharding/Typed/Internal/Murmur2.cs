@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text;
 
-namespace Akka.Cluster.Sharding.Internal
+namespace Akka.Cluster.Sharding.Typed.Internal
 {
     public static class Murmur2
     {

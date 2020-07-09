@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using Akka.Actor;
 
-namespace Akka.Cluster.Sharding
+namespace Akka.Cluster.Sharding.Typed
 {
     /// <summary>
     /// Entirely customizable typed message extractor. Prefer <see cref="HashCodeMessageExtractor{M}"/> or
@@ -33,6 +31,13 @@ namespace Akka.Cluster.Sharding
             where T : class?
             => new HashCodeNoEnvelopeMessageExtractor<T>(numberOfShards, extractEntityId);
 
+        public int NumberOfShards { get; }
+
+        protected ShardingMessageExtractor(int numberOfShards)
+        {
+            NumberOfShards = numberOfShards;
+        }
+
         public abstract string EntityId(E message);
         public abstract string ShardId(string entityId);
         public abstract M UnwrapMessage(E message);
@@ -42,12 +47,8 @@ namespace Akka.Cluster.Sharding
         : ShardingMessageExtractor<ShardingEnvelope<M>, M>
         where M : class?
     {
-        public int NumberOfShards { get; }
-
-        public HashCodeMessageExtractor(int numberOfShards)
-        {
-            NumberOfShards = numberOfShards;
-        }
+        public HashCodeMessageExtractor(int numberOfShards) : base(numberOfShards)
+        { }
 
         public override string EntityId(ShardingEnvelope<M> envelope)
             => envelope.EntityId;
@@ -62,11 +63,10 @@ namespace Akka.Cluster.Sharding
     public class HashCodeNoEnvelopeMessageExtractor<M> : ShardingMessageExtractor<M, M>
     {
         private readonly Func<M, string> _extractEntityId;
-        public int NumberOfShards { get; }
 
         public HashCodeNoEnvelopeMessageExtractor(int numberOfShards, Func<M, string> extractEntityId)
+            : base(numberOfShards)
         {
-            NumberOfShards = numberOfShards;
             _extractEntityId = extractEntityId;
         }
 
@@ -110,6 +110,12 @@ namespace Akka.Cluster.Sharding
         {
             EntityId = entityId;
             Message = message ?? throw new InvalidMessageException("[null] is not an allowed message.");
+        }
+
+        public void Deconstruct(out string entityId, out T message)
+        {
+            entityId = EntityId;
+            message = Message;
         }
     }
 }

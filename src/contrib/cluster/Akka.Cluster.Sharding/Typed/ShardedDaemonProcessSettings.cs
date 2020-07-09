@@ -10,11 +10,11 @@ using Akka.Actor;
 using Akka.Annotations;
 using Akka.Configuration;
 
-namespace Akka.Cluster.Sharding
+namespace Akka.Cluster.Sharding.Typed
 {
     [Serializable]
     [ApiMayChange]
-    public sealed class ShardedDaemonProcessSettings
+    internal sealed class ShardedDaemonProcessSettings
     {
         /// <summary>
         /// The interval each parent of the sharded set is pinged from each node in the cluster.

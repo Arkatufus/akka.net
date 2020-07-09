@@ -6,70 +6,103 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Collections.Immutable;
 using System.Linq;
 using Akka.Actor;
 using Akka.Annotations;
+using Akka.Event;
+using Akka.Util;
+using Akka.Util.Extensions;
 using Akka.Util.Internal;
+using EntityId = System.String;
 
-namespace Akka.Cluster.Sharding
+namespace Akka.Cluster.Sharding.Typed.Internal
 {
-    internal class KeepAlivePinger : UntypedActor, IWithTimers
+    // Sharded Daemon: This actor is a back ported version of the scala Actor.Typed version
+    internal class KeepAlivePinger : ReceiveActor, IWithTimers
     {
-        private sealed class Tick
+        internal interface IEvent { }
+
+        private sealed class Tick : IEvent
         {
             public static Tick Instance { get; } = new Tick();
             private Tick() { }
         }
 
+        private readonly ILoggingAdapter _log;
+
         public string Name { get; }
-        public string[] Identities { get; }
+        public ImmutableArray<EntityId> Identities { get; }
         public IActorRef ShardingRef { get; }
         public ShardedDaemonProcessSettings Settings { get; }
 
         public ITimerScheduler Timers { get; set; }
 
-        public static Props Props(ShardedDaemonProcessSettings settings, string name, string[] identities, IActorRef shardingRef) =>
-            Actor.Props.Create(() => new KeepAlivePinger(settings, name, identities, shardingRef));
+        public static Props Props(
+            ShardedDaemonProcessSettings settings, 
+            string name, 
+            ImmutableArray<EntityId> identities, 
+            IActorRef shardingRef) 
+            => Actor.Props.Create(() => new KeepAlivePinger(settings, name, identities, shardingRef));
 
-        public KeepAlivePinger(ShardedDaemonProcessSettings settings, string name, string[] identities, IActorRef shardingRef)
+        public KeepAlivePinger(
+            ShardedDaemonProcessSettings settings,
+            string name,
+            ImmutableArray<EntityId> identities,
+            IActorRef shardingRef)
         {
             Settings = settings;
             Name = name;
             Identities = identities;
             ShardingRef = shardingRef;
+
+            _log = Context.GetLogger();
+
+            Receive<IEvent>(msg =>
+            {
+                switch (msg)
+                {
+                    case Tick _:
+                        TriggerStartAll();
+                        _log.Debug("Periodic ping sent to [{0}] processes", Identities.Length);
+                        break;
+                }
+            });
         }
 
         protected override void PreStart()
         {
             base.PreStart();
 
-            Context.System.Log.Debug("Starting Sharded Daemon Process KeepAlivePinger for [{0}], with ping interval [{1}]");
-            Timers.StartPeriodicTimer("tick", Tick.Instance, Settings.KeepAliveInterval);
-            TriggerStartAll();
-        }
+            _log.Debug("Starting Sharded Daemon Process KeepAlivePinger for [{0}], with ping interval [{1}]", Name, ((TimeSpan?)Settings.KeepAliveInterval).Pretty());
 
-        protected override void OnReceive(object message)
-        {
-            if (message is Tick _)
-            {
-                TriggerStartAll();
-                Context.System.Log.Debug("Periodic ping sent to [{0}] processes", Identities.Length);
-            }
+            // Sharded Daemon: This is supposed to be StartTimerWithFixedDelay in the scala version.
+            Timers.StartPeriodicTimer(Tick.Instance, Tick.Instance, Settings.KeepAliveInterval);
+            TriggerStartAll();
         }
 
         private void TriggerStartAll() => Identities.ForEach(id => ShardingRef.Tell(new ShardRegion.StartEntity(id)));
     }
 
-    internal sealed class MessageExtractor : HashCodeMessageExtractor
+#nullable enable
+    internal sealed class MessageExtractor<T> 
+        : ShardingMessageExtractor<ShardingEnvelope<T>, T> 
+        where T : class?
     {
         public MessageExtractor(int maxNumberOfShards)
             : base(maxNumberOfShards)
         { }
 
-        public override string EntityId(object message) => (message as ShardingEnvelope)?.EntityId;
-        public override object EntityMessage(object message) => (message as ShardingEnvelope)?.Message;
-        public override string ShardId(object message) => message is ShardRegion.StartEntity se ? se.EntityId : EntityId(message);
+        public override string EntityId(ShardingEnvelope<T> message)
+            => message.EntityId;
+
+        public override string ShardId(string entityId)
+            => entityId;
+
+        public override T UnwrapMessage(ShardingEnvelope<T> message)
+            => message.Message;
     }
+#nullable disable
 
     /// <summary>
     /// <para>This extension runs a pre set number of actors in a cluster.</para>
@@ -86,7 +119,7 @@ namespace Akka.Cluster.Sharding
     /// <para>Not for user extension.</para>
     /// </summary>
     [ApiMayChange]
-    public class ShardedDaemonProcessImpl : IExtension
+    internal class ShardedDaemonProcessImpl : IExtension
     {
         private readonly ExtendedActorSystem _system;
 
@@ -101,7 +134,7 @@ namespace Akka.Cluster.Sharding
         /// <param name="name">TBD</param>
         /// <param name="numberOfInstances">TBD</param>
         /// <param name="propsFactory">Given a unique id of `0` until `numberOfInstance` create an entity actor.</param>
-        public void Init(string name, int numberOfInstances, Func<int, Props> propsFactory)
+        public void Init<T>(string name, int numberOfInstances, Func<int, Props> propsFactory)
         {
             Init(name, numberOfInstances, propsFactory, ShardedDaemonProcessSettings.Create(_system));
         }
@@ -113,35 +146,46 @@ namespace Akka.Cluster.Sharding
         /// <param name="numberOfInstances">TBD</param>
         /// <param name="propsFactory">Given a unique id of `0` until `numberOfInstance` create an entity actor.</param>
         /// <param name="settings">TBD</param>
-        public void Init(string name, int numberOfInstances, Func<int, Props> propsFactory, ShardedDaemonProcessSettings settings)
+        public void Init<T>(
+            string name, 
+            int numberOfInstances, 
+            Func<int, Props> propsFactory, 
+            ShardedDaemonProcessSettings settings,
+            Option<T> stopMessage)
         {
+            // is this important?
+            // val entityTypeKey = EntityTypeKey[T](s"sharded-daemon-process-$name")
+            var entityTypeKey = $"sharded-daemon-process-{name}";
+
             // One shard per actor identified by the numeric id encoded in the entity id
             var numberOfShards = numberOfInstances;
-            var entityIds = Enumerable.Range(0, numberOfInstances).Select(i => i.ToString()).ToArray();
+            var entityIds = Enumerable.Range(0, numberOfInstances).Select(i => i.ToString()).ToImmutableArray();
 
-            // Defaults in `akka.cluster.sharding` but allow overrides specifically for actor-set   
             var shardingBaseSettings = settings.ShardingSettings;
             if (shardingBaseSettings == null)
             {
-                var shardingConfig = _system.Settings.Config.GetConfig("akka.cluster.sharded-daemon-process.sharding");
-                var coordinatorSingletonConfig = _system.Settings.Config.GetConfig(shardingConfig.GetString("coordinator-singleton"));
-                shardingBaseSettings = ClusterShardingSettings.Create(shardingConfig, coordinatorSingletonConfig);
+                // Defaults in `akka.cluster.sharding` but allow overrides specifically for actor-set   
+                shardingBaseSettings = ClusterShardingSettings.FromConfig(
+                    _system.Settings.Config.GetConfig("akka.cluster.sharded-daemon-process.sharding"));
             }
 
             var shardingSettings = new ClusterShardingSettings(
+                numberOfShards,
                 shardingBaseSettings.Role,
+                shardingBaseSettings.DataCenter,
                 false, // remember entities disabled
                 "",
                 "",
                 TimeSpan.Zero, // passivation disabled
-                StateStoreMode.DData,
-                shardingBaseSettings.TunningParameters,
+                shardingBaseSettings.ShardRegionQueryTimeout,
+                ClusterShardingSettings.StateStoreModeDData.Instance,
+                shardingBaseSettings.TuningParameters,
                 shardingBaseSettings.CoordinatorSingletonSettings);
 
-            if (string.IsNullOrEmpty(shardingSettings.Role) || Cluster.Get(_system).SelfRoles.Contains(shardingSettings.Role))
+            if (!shardingSettings.Role.HasValue || Cluster.Get(_system).SelfRoles.Contains(shardingSettings.Role.Value))
             {
                 var shardRegion = ClusterSharding.Get(_system).Start(
-                    typeName: $"sharded-daemon-process-{name}",
+                    typeName: entityTypeKey,
                     entityPropsFactory: entityId => propsFactory(int.Parse(entityId)),
                     settings: shardingSettings,
                     messageExtractor: new MessageExtractor(numberOfShards));
