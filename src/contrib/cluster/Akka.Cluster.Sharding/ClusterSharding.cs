@@ -19,6 +19,7 @@ using Akka.Dispatch;
 using Akka.Event;
 using Akka.Pattern;
 using Akka.Util;
+using ClassicClusterShardingSettings = Akka.Cluster.Sharding.ClusterShardingSettings;
 
 namespace Akka.Cluster.Sharding
 {
@@ -201,7 +202,7 @@ namespace Akka.Cluster.Sharding
             _system.Settings.InjectTopLevelFallback(ClusterSingletonManager.DefaultConfig());
             _system.Settings.InjectTopLevelFallback(DistributedData.DistributedData.DefaultConfig());
             _cluster = Cluster.Get(_system);
-            Settings = ClusterShardingSettings.Create(system);
+            Settings = ClassicClusterShardingSettings.Create(system);
 
             _guardian = new Lazy<IActorRef>(() =>
             {
@@ -215,7 +216,7 @@ namespace Akka.Cluster.Sharding
         /// <summary>
         /// Gets object representing settings for the current cluster sharding plugin.
         /// </summary>
-        public ClusterShardingSettings Settings { get; }
+        public ClassicClusterShardingSettings Settings { get; }
 
         /// <summary>
         /// Default HOCON settings for cluster sharding.
@@ -232,14 +233,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityProps">
         /// The <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="extractEntityId">
         /// Partial function to extract the entity id and the message to send to the entity from the incoming message,
         /// if the partial function does not match the message will be `unhandled`,
@@ -260,7 +261,7 @@ namespace Akka.Cluster.Sharding
         public IActorRef Start(
             string typeName,
             Props entityProps,
-            ClusterShardingSettings settings,
+            ClassicClusterShardingSettings settings,
             ExtractEntityId extractEntityId,
             ExtractShardId extractShardId,
             IShardAllocationStrategy allocationStrategy,
@@ -300,14 +301,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityProps">
         /// The <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="extractEntityId">
         /// Partial function to extract the entity id and the message to send to the entity from the incoming message,
         /// if the partial function does not match the message will be `unhandled`,
@@ -328,7 +329,7 @@ namespace Akka.Cluster.Sharding
         public async Task<IActorRef> StartAsync(
             string typeName,
             Props entityProps,
-            ClusterShardingSettings settings,
+            ClassicClusterShardingSettings settings,
             ExtractEntityId extractEntityId,
             ExtractShardId extractShardId,
             IShardAllocationStrategy allocationStrategy,
@@ -368,14 +369,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityProps">
         /// The <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="extractEntityId">
         /// Partial function to extract the entity id and the message to send to the entity from the incoming message,
         /// if the partial function does not match the message will be `unhandled`,
@@ -388,7 +389,7 @@ namespace Akka.Cluster.Sharding
         public IActorRef Start(
             string typeName,
             Props entityProps,
-            ClusterShardingSettings settings,
+            ClassicClusterShardingSettings settings,
             ExtractEntityId extractEntityId,
             ExtractShardId extractShardId)
         {
@@ -402,14 +403,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityProps">
         /// The <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="extractEntityId">
         /// Partial function to extract the entity id and the message to send to the entity from the incoming message,
         /// if the partial function does not match the message will be `unhandled`,
@@ -422,7 +423,7 @@ namespace Akka.Cluster.Sharding
         public Task<IActorRef> StartAsync(
             string typeName,
             Props entityProps,
-            ClusterShardingSettings settings,
+            ClassicClusterShardingSettings settings,
             ExtractEntityId extractEntityId,
             ExtractShardId extractShardId)
         {
@@ -436,14 +437,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityProps">
         /// The <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="messageExtractor">
         /// Functions to extract the entity id, shard id, and the message to send to the entity from the incoming message.
         /// </param>
@@ -453,7 +454,7 @@ namespace Akka.Cluster.Sharding
         /// graceful shutdown of a <see cref="Sharding.ShardRegion"/>, e.g. <see cref="PoisonPill"/>.
         /// </param>
         /// <returns>The actor ref of the <see cref="Sharding.ShardRegion"/> that is to be responsible for the shard.</returns>
-        public IActorRef Start(string typeName, Props entityProps, ClusterShardingSettings settings,
+        public IActorRef Start(string typeName, Props entityProps, ClassicClusterShardingSettings settings,
             IMessageExtractor messageExtractor, IShardAllocationStrategy allocationStrategy, object handOffMessage)
         {
             ExtractEntityId extractEntityId = messageExtractor.ToExtractEntityId();
@@ -468,14 +469,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityProps">
         /// The <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="messageExtractor">
         /// Functions to extract the entity id, shard id, and the message to send to the entity from the incoming message.
         /// </param>
@@ -485,7 +486,7 @@ namespace Akka.Cluster.Sharding
         /// graceful shutdown of a <see cref="Sharding.ShardRegion"/>, e.g. <see cref="PoisonPill"/>.
         /// </param>
         /// <returns>The actor ref of the <see cref="Sharding.ShardRegion"/> that is to be responsible for the shard.</returns>
-        public Task<IActorRef> StartAsync(string typeName, Props entityProps, ClusterShardingSettings settings,
+        public Task<IActorRef> StartAsync(string typeName, Props entityProps, ClassicClusterShardingSettings settings,
             IMessageExtractor messageExtractor, IShardAllocationStrategy allocationStrategy, object handOffMessage)
         {
             ExtractEntityId extractEntityId = messageExtractor.ToExtractEntityId();
@@ -500,19 +501,19 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityProps">
         /// The <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="messageExtractor">
         /// Functions to extract the entity id, shard id, and the message to send to the entity from the incoming message.
         /// </param>
         /// <returns>The actor ref of the <see cref="Sharding.ShardRegion"/> that is to be responsible for the shard.</returns>
-        public IActorRef Start(string typeName, Props entityProps, ClusterShardingSettings settings,
+        public IActorRef Start(string typeName, Props entityProps, ClassicClusterShardingSettings settings,
             IMessageExtractor messageExtractor)
         {
             return Start(typeName,
@@ -529,19 +530,19 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityProps">
         /// The <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="messageExtractor">
         /// Functions to extract the entity id, shard id, and the message to send to the entity from the incoming message.
         /// </param>
         /// <returns>The actor ref of the <see cref="Sharding.ShardRegion"/> that is to be responsible for the shard.</returns>
-        public Task<IActorRef> StartAsync(string typeName, Props entityProps, ClusterShardingSettings settings,
+        public Task<IActorRef> StartAsync(string typeName, Props entityProps, ClassicClusterShardingSettings settings,
             IMessageExtractor messageExtractor)
         {
             return StartAsync(typeName,
@@ -559,14 +560,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityPropsFactory">
         /// Function that, given an entity id, returns the <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="extractEntityId">
         /// Partial function to extract the entity id and the message to send to the entity from the incoming message,
         /// if the partial function does not match the message will be `unhandled`,
@@ -587,7 +588,45 @@ namespace Akka.Cluster.Sharding
         public IActorRef Start(
             string typeName,
             Func<string, Props> entityPropsFactory,
-            ClusterShardingSettings settings,
+            ClassicClusterShardingSettings settings,
+            ExtractEntityId extractEntityId,
+            ExtractShardId extractShardId,
+            IShardAllocationStrategy allocationStrategy,
+            object handOffStopMessage)
+        {
+            if (settings.ShouldHostShard(_cluster))
+            {
+                var timeout = _system.Settings.CreationTimeout;
+                var startMsg = new ClusterShardingGuardian.Start(typeName, entityPropsFactory, settings, extractEntityId, extractShardId, allocationStrategy, handOffStopMessage);
+
+                var reply = _guardian.Value.Ask(startMsg, timeout).Result;
+                switch (reply)
+                {
+                    case ClusterShardingGuardian.Started started:
+                        var shardRegion = started.ShardRegion;
+                        _regions.TryAdd(typeName, shardRegion);
+                        return shardRegion;
+
+                    case Status.Failure failure:
+                        ExceptionDispatchInfo.Capture(failure.Cause).Throw();
+                        return ActorRefs.Nobody;
+
+                    default:
+                        throw new ActorInitializationException($"Unsupported guardian response: {reply}");
+                }
+            }
+            else
+            {
+                _cluster.System.Log.Debug("Starting Shard Region Proxy [{0}] (no actors will be hosted on this node)...", typeName);
+                return StartProxy(typeName, settings.Role, extractEntityId, extractShardId);
+            }
+        }
+
+        // Akka.Cluster.Sharding.Typed backport version
+        public IActorRef Start(
+            string typeName,
+            Func<string, Props> entityPropsFactory,
+            Typed.ClusterShardingSettings settings,
             ExtractEntityId extractEntityId,
             ExtractShardId extractShardId,
             IShardAllocationStrategy allocationStrategy,
@@ -627,14 +666,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityPropsFactory">
         /// Function that, given an entity id, returns the <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="extractEntityId">
         /// Partial function to extract the entity id and the message to send to the entity from the incoming message,
         /// if the partial function does not match the message will be `unhandled`,
@@ -655,7 +694,7 @@ namespace Akka.Cluster.Sharding
         public async Task<IActorRef> StartAsync(
             string typeName,
             Func<string, Props> entityPropsFactory,
-            ClusterShardingSettings settings,
+            ClassicClusterShardingSettings settings,
             ExtractEntityId extractEntityId,
             ExtractShardId extractShardId,
             IShardAllocationStrategy allocationStrategy,
@@ -695,14 +734,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityPropsFactory">
         /// Function that, given an entity id, returns the <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="extractEntityId">
         /// Partial function to extract the entity id and the message to send to the entity from the incoming message,
         /// if the partial function does not match the message will be `unhandled`,
@@ -715,7 +754,7 @@ namespace Akka.Cluster.Sharding
         public IActorRef Start(
             string typeName,
             Func<string, Props> entityPropsFactory,
-            ClusterShardingSettings settings,
+            ClassicClusterShardingSettings settings,
             ExtractEntityId extractEntityId,
             ExtractShardId extractShardId)
         {
@@ -729,14 +768,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityPropsFactory">
         /// Function that, given an entity id, returns the <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="extractEntityId">
         /// Partial function to extract the entity id and the message to send to the entity from the incoming message,
         /// if the partial function does not match the message will be `unhandled`,
@@ -749,7 +788,7 @@ namespace Akka.Cluster.Sharding
         public Task<IActorRef> StartAsync(
             string typeName,
             Func<string, Props> entityPropsFactory,
-            ClusterShardingSettings settings,
+            ClassicClusterShardingSettings settings,
             ExtractEntityId extractEntityId,
             ExtractShardId extractShardId)
         {
@@ -763,14 +802,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityPropsFactory">
         /// Function that, given an entity id, returns the <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="messageExtractor">
         /// Functions to extract the entity id, shard id, and the message to send to the entity from the incoming message.
         /// </param>
@@ -780,7 +819,7 @@ namespace Akka.Cluster.Sharding
         /// graceful shutdown of a <see cref="Sharding.ShardRegion"/>, e.g. <see cref="PoisonPill"/>.
         /// </param>
         /// <returns>The actor ref of the <see cref="Sharding.ShardRegion"/> that is to be responsible for the shard.</returns>
-        public IActorRef Start(string typeName, Func<string, Props> entityPropsFactory, ClusterShardingSettings settings,
+        public IActorRef Start(string typeName, Func<string, Props> entityPropsFactory, ClassicClusterShardingSettings settings,
             IMessageExtractor messageExtractor, IShardAllocationStrategy allocationStrategy, object handOffMessage)
         {
             ExtractEntityId extractEntityId = messageExtractor.ToExtractEntityId();
@@ -795,14 +834,14 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityPropsFactory">
         /// Function that, given an entity id, returns the <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="messageExtractor">
         /// Functions to extract the entity id, shard id, and the message to send to the entity from the incoming message.
         /// </param>
@@ -812,7 +851,7 @@ namespace Akka.Cluster.Sharding
         /// graceful shutdown of a <see cref="Sharding.ShardRegion"/>, e.g. <see cref="PoisonPill"/>.
         /// </param>
         /// <returns>The actor ref of the <see cref="Sharding.ShardRegion"/> that is to be responsible for the shard.</returns>
-        public Task<IActorRef> StartAsync(string typeName, Func<string, Props> entityPropsFactory, ClusterShardingSettings settings,
+        public Task<IActorRef> StartAsync(string typeName, Func<string, Props> entityPropsFactory, ClassicClusterShardingSettings settings,
             IMessageExtractor messageExtractor, IShardAllocationStrategy allocationStrategy, object handOffMessage)
         {
             ExtractEntityId extractEntityId = messageExtractor.ToExtractEntityId();
@@ -827,19 +866,19 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityPropsFactory">
         /// Function that, given an entity id, returns the <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="messageExtractor">
         /// Functions to extract the entity id, shard id, and the message to send to the entity from the incoming message.
         /// </param>
         /// <returns>The actor ref of the <see cref="Sharding.ShardRegion"/> that is to be responsible for the shard.</returns>
-        public IActorRef Start(string typeName, Func<string, Props> entityPropsFactory, ClusterShardingSettings settings,
+        public IActorRef Start(string typeName, Func<string, Props> entityPropsFactory, ClassicClusterShardingSettings settings,
             IMessageExtractor messageExtractor)
         {
             return Start(typeName,
@@ -856,19 +895,19 @@ namespace Akka.Cluster.Sharding
         /// actor for this type can later be retrieved with the <see cref="ShardRegion"/> method.
         ///
         /// This method will start a <see cref="ShardRegion"/> in proxy mode in case if there is no match between the roles of
-        /// the current cluster node and the role specified in <see cref="ClusterShardingSettings"/> passed to this method.
+        /// the current cluster node and the role specified in <see cref="Sharding.ClusterShardingSettings"/> passed to this method.
         ///
         /// </summary>
         /// <param name="typeName">The name of the entity type</param>
         /// <param name="entityPropsFactory">
         /// Function that, given an entity id, returns the <see cref="Actor.Props"/> of the entity actors that will be created by the <see cref="Sharding.ShardRegion"/>
         /// </param>
-        /// <param name="settings">Configuration settings, see <see cref="ClusterShardingSettings"/></param>
+        /// <param name="settings">Configuration settings, see <see cref="Sharding.ClusterShardingSettings"/></param>
         /// <param name="messageExtractor">
         /// Functions to extract the entity id, shard id, and the message to send to the entity from the incoming message.
         /// </param>
         /// <returns>The actor ref of the <see cref="Sharding.ShardRegion"/> that is to be responsible for the shard.</returns>
-        public Task<IActorRef> StartAsync(string typeName, Func<string, Props> entityPropsFactory, ClusterShardingSettings settings,
+        public Task<IActorRef> StartAsync(string typeName, Func<string, Props> entityPropsFactory, ClassicClusterShardingSettings settings,
             IMessageExtractor messageExtractor)
         {
             return StartAsync(typeName,
@@ -902,7 +941,7 @@ namespace Akka.Cluster.Sharding
         public IActorRef StartProxy(string typeName, string role, ExtractEntityId extractEntityId, ExtractShardId extractShardId)
         {
             var timeout = _system.Settings.CreationTimeout;
-            var settings = ClusterShardingSettings.Create(_system).WithRole(role);
+            var settings = ClassicClusterShardingSettings.Create(_system).WithRole(role);
             var startMsg = new ClusterShardingGuardian.StartProxy(typeName, settings, extractEntityId, extractShardId);
             var reply = _guardian.Value.Ask(startMsg, timeout).Result;
             switch (reply)
@@ -943,7 +982,7 @@ namespace Akka.Cluster.Sharding
         public async Task<IActorRef> StartProxyAsync(string typeName, string role, ExtractEntityId extractEntityId, ExtractShardId extractShardId)
         {
             var timeout = _system.Settings.CreationTimeout;
-            var settings = ClusterShardingSettings.Create(_system).WithRole(role);
+            var settings = ClassicClusterShardingSettings.Create(_system).WithRole(role);
             var startMsg = new ClusterShardingGuardian.StartProxy(typeName, settings, extractEntityId, extractShardId);
             var reply = await _guardian.Value.Ask(startMsg, timeout);
             switch (reply)
@@ -1056,11 +1095,11 @@ namespace Akka.Cluster.Sharding
             throw new ArgumentException($"Shard type [{typeName}] must be started first");
         }
 
-        public IShardAllocationStrategy DefaultShardAllocationStrategy(ClusterShardingSettings settings)
+        public IShardAllocationStrategy DefaultShardAllocationStrategy(ClassicClusterShardingSettings settings)
         {
             return new LeastShardAllocationStrategy(
-                Settings.TunningParameters.LeastShardAllocationRebalanceThreshold,
-                Settings.TunningParameters.LeastShardAllocationMaxSimultaneousRebalance);
+                Settings.TuningParameters.LeastShardAllocationRebalanceThreshold,
+                Settings.TuningParameters.LeastShardAllocationMaxSimultaneousRebalance);
         }
 
     }

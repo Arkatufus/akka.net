@@ -8,6 +8,8 @@
 using System;
 using System.Linq;
 using Akka.Actor;
+using Akka.Cluster.Sharding.Typed;
+using Akka.Cluster.Sharding.Typed.Internal;
 using Akka.Cluster.Tools.Singleton;
 using Akka.Configuration;
 using Akka.TestKit;
