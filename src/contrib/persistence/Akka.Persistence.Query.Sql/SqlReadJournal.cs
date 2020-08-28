@@ -52,7 +52,6 @@ namespace Akka.Persistence.Query.Sql
             _maxBufferSize = config.GetInt("max-buffer-size", 0);
             _system = system;
 
-            _lock = new ReaderWriterLockSlim();
             _persistenceIdsPublisher = null;
         }
 
