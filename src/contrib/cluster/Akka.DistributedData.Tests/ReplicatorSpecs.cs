@@ -58,6 +58,8 @@ namespace Akka.DistributedData.Tests
         private readonly ORMultiValueDictionaryKey<string, string> _keyJ = new ORMultiValueDictionaryKey<string, string>("J");
         private readonly LWWDictionaryKey<string, string> _keyK = new LWWDictionaryKey<string, string>("K");
 
+        private readonly ORDictionaryKey<string, ITest> _keyL = new ORDictionaryKey<string, ITest>("L");
+
         public ReplicatorSpecs(ITestOutputHelper helper) : base(SpecConfig, helper)
         {
             _sys1 = Sys;
@@ -153,6 +155,47 @@ namespace Akka.DistributedData.Tests
             {
                 new KeyValuePair<string, Flag>("a", Flag.True),
                 new KeyValuePair<string, Flag>("b", Flag.True)
+            })).ShouldBeTrue();
+        }
+
+        [Fact]
+        public async Task Issue_3759_UpdateORDictionaryWithInterfaceData()
+        {
+            await InitCluster();
+            UpdateORDictionaryWithInterfaceNode2And1();
+        }
+
+        private void UpdateORDictionaryWithInterfaceNode2And1()
+        {
+            var changedProbe = CreateTestProbe(_sys2);
+
+            // subscribe to updates for KeyH, then update it with a replication factor of two
+            _replicator2.Tell(Dsl.Subscribe(_keyL, changedProbe.Ref));
+            _replicator2.Tell(Dsl.Update(_keyL, ORDictionary<string, ITest>.Empty, _writeTwo, x => x.SetItem(Cluster.Cluster.Get(_sys2), "a", new Test(1))));
+
+            // receive local update
+            var entries = changedProbe.ExpectMsg<Changed>(g => Equals(g.Key, _keyL)).Get(_keyL).Entries;
+            entries.SequenceEqual(ImmutableDictionary.CreateRange(new[]
+            {
+                new KeyValuePair<string, ITest>("a", new Test(1)),
+            })).ShouldBeTrue();
+
+            // push update from node 1
+            _replicator1.Tell(Dsl.Update(_keyL, ORDictionary<string, ITest>.Empty, _writeTwo, x => x.SetItem(Cluster.Cluster.Get(_sys1), "a", new Test(5))));
+
+            // expect replication of update on node 2
+            entries = changedProbe.ExpectMsg<Changed>(g => Equals(g.Key, _keyL)).Get(_keyL).Entries;
+            entries.SequenceEqual(ImmutableDictionary.CreateRange(new[]
+            {
+                new KeyValuePair<string, ITest>("a", new Test(5))
+            })).ShouldBeTrue();
+
+            // add new value to dictionary from node 2
+            _replicator2.Tell(Dsl.Update(_keyL, ORDictionary<string, ITest>.Empty, _writeTwo, x => x.SetItem(Cluster.Cluster.Get(_sys2), "b", new Test(5))));
+            changedProbe.ExpectMsg<Changed>(g => Equals(g.Key, _keyL)).Get(_keyL).Entries.SequenceEqual(ImmutableDictionary.CreateRange(new[]
+            {
+                new KeyValuePair<string, ITest>("a", new Test(5)),
+                new KeyValuePair<string, ITest>("b", new Test(5))
             })).ShouldBeTrue();
         }
 
@@ -582,5 +625,52 @@ namespace Akka.DistributedData.Tests
             GC.Collect();
         }
 
+
+        private interface ITest: IReplicatedData<ITest>, IEquatable<ITest>
+        {
+            int Property { get; }
+        }
+
+        private class Test : ITest
+        {
+            public int Property { get; private set; }
+
+            public Test(int value)
+            {
+                Property = value;
+            }
+
+            public ITest Merge(ITest other)
+            {
+                Property = other.Property;
+                return this;
+            }
+
+            public IReplicatedData Merge(IReplicatedData other)
+            {
+                Property = ((ITest)other).Property;
+                return this;
+            }
+
+            public bool Equals(ITest other)
+            {
+                if (other == null) return false;
+                return Property == other.Property;
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (obj == null) return false;
+                if (ReferenceEquals(this, obj)) return true;
+                if (!(obj is ITest test))
+                    return false;
+                return Equals(test);
+            }
+
+            public override int GetHashCode()
+            {
+                return Property;
+            }
+        }
     }
 }
