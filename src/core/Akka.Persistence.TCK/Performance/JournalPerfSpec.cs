@@ -180,7 +180,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
 
         [Fact]
-        public void PersistenceActor_performance_must_measure_Persist()
+        public virtual void PersistenceActor_performance_must_measure_Persist()
         {
             var p1 = BenchActor("PersistPid", EventsCount);
             Measure(d => $"Persist()-ing {EventsCount} took {d.TotalMilliseconds} ms", () =>
@@ -191,7 +191,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
 
         [Fact]
-        public void PersistenceActor_performance_must_measure_PersistAll()
+        public virtual void PersistenceActor_performance_must_measure_PersistAll()
         {
             var p1 = BenchActor("PersistAllPid", EventsCount);
             Measure(d => $"PersistAll()-ing {EventsCount} took {d.TotalMilliseconds} ms", () =>
@@ -202,7 +202,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
 
         [Fact]
-        public void PersistenceActor_performance_must_measure_PersistAsync()
+        public virtual void PersistenceActor_performance_must_measure_PersistAsync()
         {
             var p1 = BenchActor("PersistAsyncPid", EventsCount);
             Measure(d => $"PersistAsync()-ing {EventsCount} took {d.TotalMilliseconds} ms", () =>
@@ -213,7 +213,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
 
         [Fact]
-        public void PersistenceActor_performance_must_measure_PersistAllAsync()
+        public virtual void PersistenceActor_performance_must_measure_PersistAllAsync()
         {
             var p1 = BenchActor("PersistAllAsyncPid", EventsCount);
             Measure(d => $"PersistAllAsync()-ing {EventsCount} took {d.TotalMilliseconds} ms", () =>
@@ -224,7 +224,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
         
         [Fact]
-        public void PersistenceActor_performance_must_measure_PersistGroup10()
+        public virtual void PersistenceActor_performance_must_measure_PersistGroup10()
         {
             int numGroup = 10;
             int numCommands = Math.Max(Math.Min(EventsCount/10,1000),100);
@@ -232,7 +232,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
         
         [Fact]
-        public void PersistenceActor_performance_must_measure_PersistGroup25()
+        public virtual void PersistenceActor_performance_must_measure_PersistGroup25()
         {
             int numGroup = 25;
             int numCommands = Math.Max(Math.Min(EventsCount/25,1000),50);
@@ -240,7 +240,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
         
         [Fact]
-        public void PersistenceActor_performance_must_measure_PersistGroup50()
+        public virtual void PersistenceActor_performance_must_measure_PersistGroup50()
         {
             int numGroup = 50;
             int numCommands = Math.Max(Math.Min(EventsCount/50,1000),20);
@@ -248,7 +248,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
         
         [Fact]
-        public void PersistenceActor_performance_must_measure_PersistGroup100()
+        public virtual void PersistenceActor_performance_must_measure_PersistGroup100()
         {
             int numGroup = 100;
             int numCommands = Math.Max(Math.Min(EventsCount/100,1000),10);
@@ -256,7 +256,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
         
         [Fact]
-        public void PersistenceActor_performance_must_measure_PersistGroup200()
+        public virtual void PersistenceActor_performance_must_measure_PersistGroup200()
         {
             int numGroup = 200;
             int numCommands = Math.Max(Math.Min(EventsCount/200,500),10);
@@ -264,7 +264,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
 
         [Fact]
-        public void PersistenceActor_performance_must_measure_Recovering()
+        public virtual void PersistenceActor_performance_must_measure_Recovering()
         {
             var p1 = BenchActor("PersistRecoverPid", EventsCount);
 
@@ -277,7 +277,7 @@ namespace Akka.Persistence.TestKit.Performance
         }
         
         [Fact]
-        public void PersistenceActor_performance_must_measure_RecoveringTwo()
+        public virtual void PersistenceActor_performance_must_measure_RecoveringTwo()
         {
             var p1 = BenchActorNewProbe("DoublePersistRecoverPid1", EventsCount);
             var p2 = BenchActorNewProbe("DoublePersistRecoverPid2", EventsCount);
@@ -300,8 +300,9 @@ namespace Akka.Persistence.TestKit.Performance
 
             },EventsCount,2);
         }
+
         [Fact]
-        public void PersistenceActor_performance_must_measure_RecoveringFour()
+        public virtual void PersistenceActor_performance_must_measure_RecoveringFour()
         {
             var p1 = BenchActorNewProbe("QuadPersistRecoverPid1", EventsCount);
             var p2 = BenchActorNewProbe("QuadPersistRecoverPid2", EventsCount);
