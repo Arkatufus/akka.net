@@ -7,36 +7,14 @@
 
 using System;
 using Xunit;
+using Xunit.Sdk;
 
 namespace Akka.Remote.TestKit
 {
+    [XunitTestCaseDiscoverer("Akka.MultiNode.TestAdapter.MultiNodeFactDiscoverer", "Akka.MultiNode.TestAdapter")]
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
     public class MultiNodeFactAttribute : FactAttribute
     {
-        /// <summary>
-        /// Set by MultiNodeTestRunner when running multi-node tests
-        /// </summary>
-        public const string MultiNodeTestEnvironmentName = "__AKKA_MULTI_NODE_ENVIRONMENT";
-
-        private bool? _executedByMultiNodeRunner;
-
-        public override string Skip
-        {
-            get
-            {
-                if (_executedByMultiNodeRunner == null)
-                {
-                    CommandLine.Initialize(Environment.GetCommandLineArgs());
-                    var cmd = CommandLine.GetPropertyOrDefault("multinode.test-runner", null);
-                    var env = Environment.GetEnvironmentVariable(MultiNodeTestEnvironmentName); 
-                    _executedByMultiNodeRunner = env != null || cmd == "multinode";
-                }
-                
-                return _executedByMultiNodeRunner != null && _executedByMultiNodeRunner.Value
-                    ? base.Skip
-                    : "Must be executed by multi-node test runner";
-            }
-            set { base.Skip = value; }
-        }
     }
 }
 
