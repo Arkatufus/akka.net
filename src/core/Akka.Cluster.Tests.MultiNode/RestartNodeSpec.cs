@@ -15,6 +15,7 @@ using Akka.Actor;
 using Akka.Actor.Dsl;
 using Akka.Cluster.TestKit;
 using Akka.Configuration;
+using Akka.MultiNode.TestAdapter;
 using Akka.Remote.TestKit;
 using Xunit;
 

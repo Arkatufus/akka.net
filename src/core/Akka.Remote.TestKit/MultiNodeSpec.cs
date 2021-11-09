@@ -428,7 +428,16 @@ namespace Akka.Remote.TestKit
             _roles = roles;
             _deployments = deployments;
 
-            var node = new IPEndPoint(Dns.GetHostAddresses(ServerName)[0], ServerPort);
+            if (!IPAddress.TryParse(ServerName, out var address))
+            {
+                var addresses = Dns.GetHostAddresses(ServerName);
+                address = addresses.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+                          ?? addresses.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetworkV6)
+                          ?? throw new Exception($"Failed to lookup IPv4 or IPv6 address for server host name [{ServerName}]");
+            }
+            
+            _log.Info($"Attaching MultiNode conductor at address [{address}] port [{ServerPort}]");
+            var node = new IPEndPoint(address, ServerPort);
             _controllerAddr = node;
 
             AttachConductor(new TestConductor(Sys));

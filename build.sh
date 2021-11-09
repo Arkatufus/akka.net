@@ -9,14 +9,9 @@ TOOLS_DIR=$SCRIPT_DIR/tools
 INCREMENTALIST_DIR=$TOOLS_DIR/incrementalist
 INCREMENTALIST_EXE=$INCREMENTALIST_DIR/Incrementalist.Cmd.exe
 NUGET_EXE=$TOOLS_DIR/nuget.exe
-NUGET_URL=https://dist.nuget.org/win-x86-commandline/v5.8.0/nuget.exe
+NUGET_URL=https://dist.nuget.org/win-x86-commandline/v5.11.0/nuget.exe
 FAKE_VERSION=4.63.0
 FAKE_EXE=$TOOLS_DIR/FAKE/tools/FAKE.exe
-DOTNET_EXE=$SCRIPT_DIR/.dotnet/dotnet
-DOTNETCORE_VERSION=3.1.105
-DOTNET_VERSION=5.0.101
-DOTNET_INSTALLER_URL=https://dot.net/v1/dotnet-install.sh
-DOTNET_CHANNEL=LTS
 PROTOBUF_VERSION=3.4.0
 INCREMENTALIST_VERSION=0.4.0
 
@@ -66,7 +61,7 @@ fi
 if [ ! -f "$FAKE_EXE" ]; then
     mono "$NUGET_EXE" install Fake -ExcludeVersion -Version $FAKE_VERSION -OutputDirectory "$TOOLS_DIR"
     if [ $? -ne 0 ]; then
-        echo "An error occured while installing Cake."
+        echo "An error occured while installing Fake."
         exit 1
     fi
 fi

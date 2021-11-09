@@ -20,6 +20,7 @@ using Akka.TestKit;
 using Xunit;
 using FluentAssertions;
 using System.Collections.Immutable;
+using Akka.MultiNode.TestAdapter;
 
 namespace Akka.Cluster.Tools.Tests.MultiNode.PublishSubscribe
 {

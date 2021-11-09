@@ -12,6 +12,7 @@ using Akka.Cluster.TestKit;
 using Akka.Configuration;
 using Akka.Remote.TestKit;
 using System.Collections.Immutable;
+using Akka.MultiNode.TestAdapter;
 using Akka.Util;
 using FluentAssertions;
 

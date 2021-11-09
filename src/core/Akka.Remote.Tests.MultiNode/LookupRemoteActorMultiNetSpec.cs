@@ -7,6 +7,7 @@
 
 using System;
 using Akka.Actor;
+using Akka.MultiNode.TestAdapter;
 using Akka.Remote.TestKit;
 using Xunit;
 

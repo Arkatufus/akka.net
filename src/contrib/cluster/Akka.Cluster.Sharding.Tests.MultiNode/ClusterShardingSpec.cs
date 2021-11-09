@@ -16,6 +16,7 @@ using Akka.Actor;
 using Akka.Cluster.TestKit;
 using Akka.Cluster.Tools.Singleton;
 using Akka.DistributedData;
+using Akka.MultiNode.TestAdapter;
 using Akka.Pattern;
 using Akka.TestKit;
 using Akka.TestKit.Internal.StringMatcher;

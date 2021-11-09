@@ -19,6 +19,7 @@ using FluentAssertions;
 using System.Threading.Tasks;
 using System.Threading;
 using Akka.Event;
+using Akka.MultiNode.TestAdapter;
 
 namespace Akka.Cluster.Sharding.Tests
 {
