@@ -105,12 +105,17 @@ namespace Akka.TestKit.Tests.TestActorRefTests
         public void TestActorRef_must_stop_when_sent_a_PoisonPill()
         {
             //TODO: Should have this surrounding all code EventFilter[ActorKilledException]() intercept {            
+            var innerProbe = CreateTestProbe();
             var a = new TestActorRef<WorkerActor>(Sys, Props.Create(() => new WorkerActor(_thread, _otherThread)), null, "will-be-killed");
             Sys.ActorOf(Props.Create(() => new WatchAndForwardActor(a, TestActor)), "forwarder");
+            innerProbe.Watch(a.Ref);
+            
             a.Tell(PoisonPill.Instance);
-            ExpectMsg<WrappedTerminated>(w => w.Terminated.ActorRef == a, TimeSpan.FromSeconds(10), string.Format("that the terminated actor was the one killed, i.e. {0}", a.Path));
-            var actorRef = (InternalTestActorRef)a.Ref;
-            actorRef.IsTerminated.ShouldBe(true);
+            ExpectMsg<WrappedTerminated>(
+                w => w.Terminated.ActorRef == a,
+                TimeSpan.FromSeconds(10),
+                $"that the terminated actor was the one killed, i.e. {a.Path}");
+            innerProbe.ExpectMsg<Terminated>(t => t.ActorRef.Equals(a.Ref));
             AssertThread();
         }
 
@@ -171,19 +176,24 @@ namespace Akka.TestKit.Tests.TestActorRefTests
         [Fact]
         public void TestActorRef_must_proxy_receive_for_the_underlying_actor_without_sender()
         {
+            var innerProbe = CreateTestProbe();
             var a = new TestActorRef<WorkerActor>(Sys, Props.Create(() => new WorkerActor(_thread, _otherThread)));
+            innerProbe.Watch(a.Ref);
+            
             a.Receive("work");
-            var actorRef = (InternalTestActorRef)a.Ref;
-            Assert.True(actorRef.IsTerminated);
+            innerProbe.ExpectMsg<Terminated>(t => t.ActorRef.Equals(a.Ref));
         }
 
         [Fact]
         public void TestActorRef_must_proxy_receive_for_the_underlying_actor_with_sender()
         {
+            var innerProbe = CreateTestProbe();
             var a = new TestActorRef<WorkerActor>(Sys, Props.Create(() => new WorkerActor(_thread, _otherThread)));
+            innerProbe.Watch(a.Ref);
+            
             a.Receive("work", TestActor);   //This will stop the actor
-            var actorRef = (InternalTestActorRef)a.Ref;
-            Assert.True(actorRef.IsTerminated);
+
+            innerProbe.ExpectMsg<Terminated>(t => t.ActorRef.Equals(a.Ref));
             ExpectMsg("workDone");
         }
 
