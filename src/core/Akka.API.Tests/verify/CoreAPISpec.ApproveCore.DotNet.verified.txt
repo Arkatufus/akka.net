@@ -696,8 +696,6 @@ namespace Akka.Actor
     public class EmptyLocalActorRef : Akka.Actor.MinimalActorRef
     {
         public EmptyLocalActorRef(Akka.Actor.IActorRefProvider provider, Akka.Actor.ActorPath path, Akka.Event.EventStream eventStream) { }
-        [System.ObsoleteAttribute("Use Context.Watch and Receive<Terminated> [1.1.0]")]
-        public override bool IsTerminated { get; }
         public override Akka.Actor.ActorPath Path { get; }
         public override Akka.Actor.IActorRefProvider Provider { get; }
         public override void SendSystemMessage(Akka.Dispatch.SysMsg.ISystemMessage message) { }
@@ -1106,8 +1104,6 @@ namespace Akka.Actor
     [Akka.Annotations.InternalApiAttribute()]
     public interface IInternalActorRef : Akka.Actor.IActorRef, Akka.Actor.IActorRefScope, Akka.Actor.ICanTell, Akka.Util.ISurrogated, System.IComparable, System.IComparable<Akka.Actor.IActorRef>, System.IEquatable<Akka.Actor.IActorRef>
     {
-        [System.ObsoleteAttribute("Use Context.Watch and Receive<Terminated> [1.1.0]")]
-        bool IsTerminated { get; }
         Akka.Actor.IInternalActorRef Parent { get; }
         Akka.Actor.IActorRefProvider Provider { get; }
         Akka.Actor.IActorRef GetChild(System.Collections.Generic.IReadOnlyList<string> name);
@@ -1229,7 +1225,6 @@ namespace Akka.Actor
     {
         protected InternalActorRefBase() { }
         public abstract bool IsLocal { get; }
-        public abstract bool IsTerminated { get; }
         public abstract Akka.Actor.IInternalActorRef Parent { get; }
         public abstract Akka.Actor.IActorRefProvider Provider { get; }
         public abstract Akka.Actor.IActorRef GetChild(System.Collections.Generic.IReadOnlyList<string> name);
@@ -1266,7 +1261,6 @@ namespace Akka.Actor
         public override System.Collections.Generic.IEnumerable<Akka.Actor.IActorRef> Children { get; }
         protected Akka.Dispatch.MessageDispatcher Dispatcher { get; }
         public override bool IsLocal { get; }
-        public override bool IsTerminated { get; }
         protected Akka.Dispatch.MailboxType MailboxType { get; }
         public override Akka.Actor.IInternalActorRef Parent { get; }
         public override Akka.Actor.ActorPath Path { get; }
@@ -1345,8 +1339,6 @@ namespace Akka.Actor
     {
         protected MinimalActorRef() { }
         public override bool IsLocal { get; }
-        [System.ObsoleteAttribute("Use Context.Watch and Receive<Terminated> [1.1.0]")]
-        public override bool IsTerminated { get; }
         public override Akka.Actor.IInternalActorRef Parent { get; }
         public override Akka.Actor.IActorRef GetChild(System.Collections.Generic.IReadOnlyList<string> name) { }
         public override void Restart(System.Exception cause) { }
@@ -1564,7 +1556,6 @@ namespace Akka.Actor
         public override System.Collections.Generic.IEnumerable<Akka.Actor.IActorRef> Children { get; }
         public override bool IsLocal { get; }
         public bool IsStarted { get; }
-        public override bool IsTerminated { get; }
         public Akka.Actor.ICell Lookup { get; }
         public override Akka.Actor.IInternalActorRef Parent { get; }
         public override Akka.Actor.ActorPath Path { get; }

@@ -165,8 +165,6 @@ namespace Akka.Remote
     {
         public RemoteActorRef(Akka.Remote.RemoteTransport remote, Akka.Actor.Address localAddressToUse, Akka.Actor.ActorPath path, Akka.Actor.IInternalActorRef parent, Akka.Actor.Props props, Akka.Actor.Deploy deploy) { }
         public override bool IsLocal { get; }
-        [System.ObsoleteAttribute("Use Context.Watch and Receive<Terminated> [1.1.0]")]
-        public override bool IsTerminated { get; }
         public Akka.Actor.Address LocalAddressToUse { get; }
         public override Akka.Actor.IInternalActorRef Parent { get; }
         public override Akka.Actor.ActorPath Path { get; }
