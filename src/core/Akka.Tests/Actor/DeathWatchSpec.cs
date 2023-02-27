@@ -205,7 +205,7 @@ namespace Akka.Tests.Actor
                     return res.ToString();
                 }, 3).ToListAsync();
 
-                ((IInternalActorRef)TestActor).IsTerminated.ShouldBe(false);
+                ((InternalActorRefBase)TestActor).IsTerminated.ShouldBe(false);
                 result.ShouldOnlyContainInOrder("1", "2", "3");
             });
         }

@@ -168,9 +168,9 @@ namespace Akka.Tests.Actor
             a.Path.Elements.Head().Should().Be("temp");
             Provider.ResolveActorRef(a.Path).Should().Be(a);
             Provider.ResolveActorRef(a.Path.ToString()).Should().Be(a);
-            Provider.ResolveActorRef(a.Path.ToString() + "/hello").AsInstanceOf<IInternalActorRef>().IsTerminated.Should().Be(true);
+            Provider.ResolveActorRef(a.Path + "/hello").AsInstanceOf<InternalActorRefBase>().IsTerminated.Should().Be(true);
             f.IsCompleted.Should().Be(false);
-            a.IsTerminated.Should().Be(false);
+            ((InternalActorRefBase)a).IsTerminated.Should().Be(false);
             a.Tell(42);
             await AwaitAssertAsync(() => f.IsCompleted.Should().Be(true));
             await AwaitAssertAsync(() => f.Result.Should().Be(42));

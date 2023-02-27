@@ -179,7 +179,7 @@ namespace Akka.Actor
         protected IInternalActorRef Supervisor => _supervisor;
 
         
-        public override bool IsTerminated => _cell.IsTerminated;
+        internal override bool IsTerminated => _cell.IsTerminated;
 
         /// <summary>
         /// The type of mailbox used by this actor

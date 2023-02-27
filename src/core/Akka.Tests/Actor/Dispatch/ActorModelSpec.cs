@@ -705,7 +705,7 @@ namespace Akka.Tests.Actor.Dispatch
             Sys.Stop(a);
             Sys.Stop(b);
 
-            SpinWait.SpinUntil(() => a.AsInstanceOf<IInternalActorRef>().IsTerminated && b.AsInstanceOf<IInternalActorRef>().IsTerminated);
+            SpinWait.SpinUntil(() => ((InternalActorRefBase)a).IsTerminated && ((InternalActorRefBase)b).IsTerminated);
 
             AssertRefDefaultZero(a, dispatcher, registers:1, unregisters:1, msgsReceived:1, msgsProcessed:1);
             AssertRefDefaultZero(b, dispatcher, registers: 1, unregisters: 1, msgsReceived: 1, msgsProcessed: 1);

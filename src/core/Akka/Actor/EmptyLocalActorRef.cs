@@ -44,11 +44,7 @@ namespace Akka.Actor
         /// </summary>
         public override IActorRefProvider Provider { get { return _provider; } }
 
-        /// <summary>
-        /// TBD
-        /// </summary>
-        [Obsolete("Use Context.Watch and Receive<Terminated> [1.1.0]")]
-        public override bool IsTerminated { get { return true; } }
+        internal override bool IsTerminated => true;
 
         /// <summary>
         /// TBD

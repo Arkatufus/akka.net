@@ -389,7 +389,7 @@ channel-executor.priority = normal");
                     Console.WriteLine("{0} inhabitants {1}", dispatcher, dispatcher.Inhabitants);
                     foreach (var actor in a)
                     {
-                        var status = actor.IsTerminated ? "(terminated)" : "(active)";
+                        var status = ((InternalActorRefBase)actor).IsTerminated ? "(terminated)" : "(active)";
                         var messages = actor is ActorRefWithCell
                             ? " " + actor.AsInstanceOf<ActorRefWithCell>().Underlying.NumberOfMessages + " messages"
                             : " " + actor.GetType();

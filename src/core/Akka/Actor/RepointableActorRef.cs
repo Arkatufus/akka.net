@@ -82,10 +82,7 @@ namespace Akka.Actor
         /// <summary>
         /// TBD
         /// </summary>
-        public override bool IsTerminated
-        {
-            get { return Underlying.IsTerminated; }
-        }
+        internal override bool IsTerminated => Underlying.IsTerminated;
 
 
         /// <summary>

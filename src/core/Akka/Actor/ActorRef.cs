@@ -391,12 +391,6 @@ namespace Akka.Actor
         IActorRefProvider Provider { get; }
 
         /// <summary>
-        /// Obsolete. Use <see cref="Watch"/> or <see cref="ReceiveActor.Receive{T}(Action{T}, Predicate{T})">Receive&lt;<see cref="Akka.Actor.Terminated"/>&gt;</see>
-        /// </summary>
-        [Obsolete("Use Context.Watch and Receive<Terminated> [1.1.0]")]
-        bool IsTerminated { get; }
-
-        /// <summary>
         /// Obtain a child given the paths element to that actor, by possibly traversing the actor tree or
         /// looking it up at some provider-specific location.
         /// A path element of ".." signifies the parent, a trailing "" element must be disregarded.
@@ -480,8 +474,7 @@ namespace Akka.Actor
         /// <inheritdoc cref="IInternalActorRef"/>
         public abstract void Suspend();
 
-        /// <inheritdoc cref="IInternalActorRef"/>
-        public abstract bool IsTerminated { get; }
+        internal abstract bool IsTerminated { get; }
 
         /// <inheritdoc cref="IInternalActorRef"/>
         public abstract bool IsLocal { get; }
@@ -561,9 +554,7 @@ namespace Akka.Actor
             get { return true; }
         }
 
-        /// <inheritdoc cref="InternalActorRefBase"/>
-        [Obsolete("Use Context.Watch and Receive<Terminated> [1.1.0]")]
-        public override bool IsTerminated { get { return false; } }
+        internal override bool IsTerminated => false;
     }
 
 
@@ -952,7 +943,7 @@ override def getChild(name: Iterator[String]): InternalActorRef = {
 
         public override ActorPath Path { get; }
         public override IActorRefProvider Provider { get; }
-        public override bool IsTerminated => Volatile.Read(ref _watchedBy) == null;
+        internal override bool IsTerminated => Volatile.Read(ref _watchedBy) == null;
 
         /// <summary>
         /// Have this FunctionRef watch the given Actor. This method must not be
