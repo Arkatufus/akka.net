@@ -63,9 +63,9 @@ akka.persistence {{
         private void Initialize()
         {
             var probe = CreateTestProbe();
-            WriteMessages(1, 5, "A", ActorRefs.Nobody, _writerGuid);
-            WriteMessages(1, 5, "B", ActorRefs.Nobody, _writerGuid);
-            WriteMessages(1, 5, "C", ActorRefs.Nobody, _writerGuid);
+            WriteMessages(1, 5, "A", probe, _writerGuid);
+            WriteMessages(1, 5, "B", probe, _writerGuid);
+            WriteMessages(1, 5, "C", probe, _writerGuid);
             
             Snapshot.Tell(new SaveSnapshot(new SnapshotMetadata("A", 5, DateTime.Now), "A-5"), probe);
             probe.ExpectMsg<SaveSnapshotSuccess>(msg => msg.Metadata.PersistenceId == "A" && msg.Metadata.SequenceNr == 5);
@@ -76,26 +76,31 @@ akka.persistence {{
             Snapshot.Tell(new SaveSnapshot(new SnapshotMetadata("C", 5, DateTime.Now), "C-5"), probe);
             probe.ExpectMsg<SaveSnapshotSuccess>(msg => msg.Metadata.PersistenceId == "C" && msg.Metadata.SequenceNr == 5);
             
-            Journal.Tell(new DeleteMessagesTo("A", 5, ActorRefs.Nobody));
-            Journal.Tell(new DeleteMessagesTo("B", 5, ActorRefs.Nobody));
-            Journal.Tell(new DeleteMessagesTo("C", 5, ActorRefs.Nobody));
+            Journal.Tell(new DeleteMessagesTo("A", 5, probe), probe);
+            probe.ExpectMsg<DeleteMessagesSuccess>(msg => msg.ToSequenceNr == 5);
             
-            WriteMessages(6, 5, "A", ActorRefs.Nobody, _writerGuid);
-            WriteMessages(6, 5, "B", ActorRefs.Nobody, _writerGuid);
-            WriteMessages(6, 5, "C", ActorRefs.Nobody, _writerGuid);
+            Journal.Tell(new DeleteMessagesTo("B", 5, probe), probe);
+            probe.ExpectMsg<DeleteMessagesSuccess>(msg => msg.ToSequenceNr == 5);
+            
+            Journal.Tell(new DeleteMessagesTo("C", 5, probe), probe);
+            probe.ExpectMsg<DeleteMessagesSuccess>(msg => msg.ToSequenceNr == 5);
+            
+            WriteMessages(6, 5, "A", probe, _writerGuid);
+            WriteMessages(6, 5, "B", probe, _writerGuid);
+            WriteMessages(6, 5, "C", probe, _writerGuid);
         }
         
-        private void WriteMessages(int from, int to, string pid, IActorRef sender, string writerGuid)
+        private void WriteMessages(int from, int count, string pid, IActorRef sender, string writerGuid)
         {
             Persistent Persistent(long i) => new Persistent($"{pid}-{i}", i, pid, string.Empty, false, sender, writerGuid);
             
-            var messages = Enumerable.Range(from, to).Select(i => new AtomicWrite(Persistent(i))).ToArray();
+            var messages = Enumerable.Range(from, count).Select(i => new AtomicWrite(Persistent(i))).ToArray();
             var probe = CreateTestProbe();
 
             Journal.Tell(new WriteMessages(messages, probe.Ref, ActorInstanceId));
 
             probe.ExpectMsg<WriteMessagesSuccessful>();
-            for (var i = from; i <= to; i++)
+            for (var i = from; i < from + count; i++)
             {
                 var n = i;
                 probe.ExpectMsg<WriteMessageSuccess>(m =>
