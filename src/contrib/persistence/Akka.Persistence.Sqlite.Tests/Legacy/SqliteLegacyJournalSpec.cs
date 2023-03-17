@@ -6,10 +6,13 @@
 // -----------------------------------------------------------------------
 
 using System;
-using System.Collections.Immutable;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Configuration;
+using Akka.TestKit;
+using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -17,20 +20,14 @@ namespace Akka.Persistence.Sqlite.Tests
 {
     public class SqliteLegacyJournalSpec: Akka.TestKit.Xunit2.TestKit
     {
-        private readonly PersistenceExtension _extension;
-        private readonly string _writerGuid;
-        private const int ActorInstanceId = 1;
-        private IActorRef Journal => _extension.JournalFor(null);
-        private IActorRef Snapshot => _extension.SnapshotStoreFor(null);
-        
+        private Dictionary<string, IActorRef> _actors = new Dictionary<string, IActorRef>();
+        private readonly TestProbe _probe;
+
         public SqliteLegacyJournalSpec(ITestOutputHelper output)
             : base(CreateSpecConfig("Filename=file:EventJournal-v1.3.0.db"), nameof(SqliteLegacyJournalSpec), output)
         {
-            _extension = Persistence.Instance.Apply(Sys as ExtendedActorSystem);
-            _writerGuid = Guid.NewGuid().ToString();
             SqlitePersistence.Get(Sys);
-
-            Initialize();
+            _probe = CreateTestProbe();
         }
         
         private static Config CreateSpecConfig(string connectionString)
@@ -56,58 +53,45 @@ akka.persistence {{
         }
 
         [Fact]
-        public void EmptyTest()
+        public void Generator()
         {
+            Generate();
         }
 
-        private void Initialize()
+        private void Generate()
         {
-            var probe = CreateTestProbe();
-            WriteMessages(1, 5, "A", probe, _writerGuid);
-            WriteMessages(1, 5, "B", probe, _writerGuid);
-            WriteMessages(1, 5, "C", probe, _writerGuid);
+            _actors["A"] = Sys.ActorOf(Props.Create(() => new PersistedActor("A", _probe)));
+            _actors["B"] = Sys.ActorOf(Props.Create(() => new PersistedActor("B", _probe)));
+            _actors["C"] = Sys.ActorOf(Props.Create(() => new PersistedActor("C", _probe)));
             
-            Snapshot.Tell(new SaveSnapshot(new SnapshotMetadata("A", 5, DateTime.Now), "A-5"), probe);
-            probe.ExpectMsg<SaveSnapshotSuccess>(msg => msg.Metadata.PersistenceId == "A" && msg.Metadata.SequenceNr == 5);
-            
-            Snapshot.Tell(new SaveSnapshot(new SnapshotMetadata("B", 5, DateTime.Now), "B-5"), probe);
-            probe.ExpectMsg<SaveSnapshotSuccess>(msg => msg.Metadata.PersistenceId == "B" && msg.Metadata.SequenceNr == 5);
-            
-            Snapshot.Tell(new SaveSnapshot(new SnapshotMetadata("C", 5, DateTime.Now), "C-5"), probe);
-            probe.ExpectMsg<SaveSnapshotSuccess>(msg => msg.Metadata.PersistenceId == "C" && msg.Metadata.SequenceNr == 5);
-            
-            Journal.Tell(new DeleteMessagesTo("A", 5, probe), probe);
-            probe.ExpectMsg<DeleteMessagesSuccess>(msg => msg.ToSequenceNr == 5);
-            
-            Journal.Tell(new DeleteMessagesTo("B", 5, probe), probe);
-            probe.ExpectMsg<DeleteMessagesSuccess>(msg => msg.ToSequenceNr == 5);
-            
-            Journal.Tell(new DeleteMessagesTo("C", 5, probe), probe);
-            probe.ExpectMsg<DeleteMessagesSuccess>(msg => msg.ToSequenceNr == 5);
-            
-            WriteMessages(6, 5, "A", probe, _writerGuid);
-            WriteMessages(6, 5, "B", probe, _writerGuid);
-            WriteMessages(6, 5, "C", probe, _writerGuid);
-        }
-        
-        private void WriteMessages(int from, int count, string pid, IActorRef sender, string writerGuid)
-        {
-            Persistent Persistent(long i) => new Persistent($"{pid}-{i}", i, pid, string.Empty, false, sender, writerGuid);
-            
-            var messages = Enumerable.Range(from, count).Select(i => new AtomicWrite(Persistent(i))).ToArray();
-            var probe = CreateTestProbe();
-
-            Journal.Tell(new WriteMessages(messages, probe.Ref, ActorInstanceId));
-
-            probe.ExpectMsg<WriteMessagesSuccessful>();
-            for (var i = from; i < from + count; i++)
+            foreach (var i in Enumerable.Range(1, 5))
             {
-                var n = i;
-                probe.ExpectMsg<WriteMessageSuccess>(m =>
-                    m.Persistent.Payload.ToString() == $"{pid}-{n}" && m.Persistent.SequenceNr == n &&
-                    m.Persistent.PersistenceId == pid);
+                _actors["A"].Tell(new PersistedActor.Persisted(i));
+                _probe.ExpectMsg<PersistedActor.PersistAck>();
+                _actors["B"].Tell(new PersistedActor.Persisted(i));
+                _probe.ExpectMsg<PersistedActor.PersistAck>();
+                _actors["C"].Tell(new PersistedActor.Persisted(i));
+                _probe.ExpectMsg<PersistedActor.PersistAck>();
+            }
+            
+            var a = _probe.ExpectMsg<PersistedActor.SaveSnapshotAck>();
+            var b = _probe.ExpectMsg<PersistedActor.SaveSnapshotAck>();
+            var c = _probe.ExpectMsg<PersistedActor.SaveSnapshotAck>();
+            new [] { a.State.Payload, b.State.Payload, c.State.Payload }.Should().BeEquivalentTo(5, 5, 5);
+            a.Events.Count.Should().Be(0);
+            b.Events.Count.Should().Be(0);
+            c.Events.Count.Should().Be(0);
+            
+            foreach (var i in Enumerable.Range(6, 5))
+            {
+                _actors["A"].Tell(new PersistedActor.Persisted(i));
+                _probe.ExpectMsg<PersistedActor.PersistAck>();
+                _actors["B"].Tell(new PersistedActor.Persisted(i));
+                _probe.ExpectMsg<PersistedActor.PersistAck>();
+                _actors["C"].Tell(new PersistedActor.Persisted(i));
+                _probe.ExpectMsg<PersistedActor.PersistAck>();
             }
         }
-        
+
     }
 }
