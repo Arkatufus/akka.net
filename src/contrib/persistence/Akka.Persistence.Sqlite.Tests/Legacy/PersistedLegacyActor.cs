@@ -9,9 +9,9 @@ using System.Collections.Generic;
 using System.Linq;
 using Akka.Actor;
 
-namespace Akka.Persistence.Sqlite.Tests
+namespace Akka.Persistence.Sqlite.Tests.Legacy
 {
-    public class PersistedActor: ReceivePersistentActor
+    public class PersistedLegacyActor: ReceivePersistentActor
     {
         private Persisted _savedState;
         private readonly List<Persisted> _events = new List<Persisted>();
@@ -21,7 +21,7 @@ namespace Akka.Persistence.Sqlite.Tests
         private int _persistCount;
         private IActorRef _probe;
 
-        public PersistedActor(string id, IActorRef probe)
+        public PersistedLegacyActor(string id, IActorRef probe)
         {
             PersistenceId = id;
             _probe = probe;

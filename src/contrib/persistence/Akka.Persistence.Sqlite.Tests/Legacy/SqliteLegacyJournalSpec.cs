@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Akka.Actor;
@@ -16,7 +17,7 @@ using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Akka.Persistence.Sqlite.Tests
+namespace Akka.Persistence.Sqlite.Tests.Legacy
 {
     public class SqliteLegacyJournalSpec: Akka.TestKit.Xunit2.TestKit
     {
@@ -24,7 +25,7 @@ namespace Akka.Persistence.Sqlite.Tests
         private readonly TestProbe _probe;
 
         public SqliteLegacyJournalSpec(ITestOutputHelper output)
-            : base(CreateSpecConfig("Filename=file:EventJournal-v1.3.0.db"), nameof(SqliteLegacyJournalSpec), output)
+            : base(CreateSpecConfig("Filename=file:.\\\\data\\\\Sqlite.v1.3.0.db"), nameof(SqliteLegacyJournalSpec), output)
         {
             SqlitePersistence.Get(Sys);
             _probe = CreateTestProbe();
@@ -32,6 +33,9 @@ namespace Akka.Persistence.Sqlite.Tests
         
         private static Config CreateSpecConfig(string connectionString)
         {
+            if (!Directory.Exists("data"))
+                Directory.CreateDirectory("data");
+            
             return ConfigurationFactory.ParseString($@"
 akka.persistence {{
     publish-plugin-commands = on
@@ -60,23 +64,23 @@ akka.persistence {{
 
         private void Generate()
         {
-            _actors["A"] = Sys.ActorOf(Props.Create(() => new PersistedActor("A", _probe)));
-            _actors["B"] = Sys.ActorOf(Props.Create(() => new PersistedActor("B", _probe)));
-            _actors["C"] = Sys.ActorOf(Props.Create(() => new PersistedActor("C", _probe)));
+            _actors["A"] = Sys.ActorOf(Props.Create(() => new PersistedLegacyActor("A", _probe)));
+            _actors["B"] = Sys.ActorOf(Props.Create(() => new PersistedLegacyActor("B", _probe)));
+            _actors["C"] = Sys.ActorOf(Props.Create(() => new PersistedLegacyActor("C", _probe)));
             
             foreach (var i in Enumerable.Range(1, 5))
             {
-                _actors["A"].Tell(new PersistedActor.Persisted(i));
-                _probe.ExpectMsg<PersistedActor.PersistAck>();
-                _actors["B"].Tell(new PersistedActor.Persisted(i));
-                _probe.ExpectMsg<PersistedActor.PersistAck>();
-                _actors["C"].Tell(new PersistedActor.Persisted(i));
-                _probe.ExpectMsg<PersistedActor.PersistAck>();
+                _actors["A"].Tell(new PersistedLegacyActor.Persisted(i));
+                _probe.ExpectMsg<PersistedLegacyActor.PersistAck>();
+                _actors["B"].Tell(new PersistedLegacyActor.Persisted(i));
+                _probe.ExpectMsg<PersistedLegacyActor.PersistAck>();
+                _actors["C"].Tell(new PersistedLegacyActor.Persisted(i));
+                _probe.ExpectMsg<PersistedLegacyActor.PersistAck>();
             }
             
-            var a = _probe.ExpectMsg<PersistedActor.SaveSnapshotAck>();
-            var b = _probe.ExpectMsg<PersistedActor.SaveSnapshotAck>();
-            var c = _probe.ExpectMsg<PersistedActor.SaveSnapshotAck>();
+            var a = _probe.ExpectMsg<PersistedLegacyActor.SaveSnapshotAck>();
+            var b = _probe.ExpectMsg<PersistedLegacyActor.SaveSnapshotAck>();
+            var c = _probe.ExpectMsg<PersistedLegacyActor.SaveSnapshotAck>();
             new [] { a.State.Payload, b.State.Payload, c.State.Payload }.Should().BeEquivalentTo(5, 5, 5);
             a.Events.Count.Should().Be(0);
             b.Events.Count.Should().Be(0);
@@ -84,12 +88,12 @@ akka.persistence {{
             
             foreach (var i in Enumerable.Range(6, 5))
             {
-                _actors["A"].Tell(new PersistedActor.Persisted(i));
-                _probe.ExpectMsg<PersistedActor.PersistAck>();
-                _actors["B"].Tell(new PersistedActor.Persisted(i));
-                _probe.ExpectMsg<PersistedActor.PersistAck>();
-                _actors["C"].Tell(new PersistedActor.Persisted(i));
-                _probe.ExpectMsg<PersistedActor.PersistAck>();
+                _actors["A"].Tell(new PersistedLegacyActor.Persisted(i));
+                _probe.ExpectMsg<PersistedLegacyActor.PersistAck>();
+                _actors["B"].Tell(new PersistedLegacyActor.Persisted(i));
+                _probe.ExpectMsg<PersistedLegacyActor.PersistAck>();
+                _actors["C"].Tell(new PersistedLegacyActor.Persisted(i));
+                _probe.ExpectMsg<PersistedLegacyActor.PersistAck>();
             }
         }
 
