@@ -201,6 +201,18 @@ namespace Akka.Actor
             // return the list of unprocessedRegistrations and signal that we're finished
             _stopped.Value.TrySetResult(_unprocessedRegistrations);
         }
+
+        private void ProcessReschedule()
+        {
+            foreach (var sched in _rescheduleRegistrations)
+            {
+                var nextDeadline = _tickDuration * _tick + sched.Offset;
+                sched.Deadline = nextDeadline;
+                PlaceInBucket(sched);
+            }
+
+            _rescheduleRegistrations.Clear();
+        }
 #else
 private Thread _worker;
 
@@ -304,8 +316,6 @@ private Thread _worker;
             }
         }
 
-#endif
-
         private void ProcessReschedule()
         {
             foreach (var sched in _rescheduleRegistrations)
@@ -317,6 +327,8 @@ private Thread _worker;
 
             _rescheduleRegistrations.Clear();
         }
+
+#endif
 
 
         private void TransferRegistrationsToBuckets()
