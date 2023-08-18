@@ -199,15 +199,25 @@ namespace Akka.Actor
             {
                 while (await _timer.WaitForNextTickAsync(token))
                 {
-                    var deadline = _tickDuration * (_tick + 1);
-                    var idx = (int)(_tick & _mask);
-                    var bucket = _wheel[idx];
-                    TransferRegistrationsToBuckets();
-                    bucket.Execute(deadline);
-                    _tick++; // it will take 2^64 * 10ms for this to overflow
+                    var deadline = Util.MonotonicClock.GetTicksHighRes() - _startTime;
+                    var clockDrift = deadline - (_tickDuration * _tick + _tickDuration);
+                    
+                    // Catch up with any missed ticks
+                    while(clockDrift >= _tickDuration)
+                    {
+                        var idx = (int)(_tick & _mask);
+                        var bucket = _wheel[idx];
+                        TransferRegistrationsToBuckets();
+                        bucket.Execute(deadline);
 
-                    bucket.ClearReschedule(_rescheduleRegistrations);
-                    ProcessReschedule();
+                        _tick++; // it will take 2^64 * 10ms for this to overflow
+
+                        bucket.ClearReschedule(_rescheduleRegistrations);
+                        ProcessReschedule(deadline, clockDrift);
+                        
+                        deadline = Util.MonotonicClock.GetTicksHighRes() - _startTime;
+                        clockDrift = deadline - (_tickDuration * _tick + _tickDuration);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -230,12 +240,11 @@ namespace Akka.Actor
             _stopped.TrySetResult(_unprocessedRegistrations);
         }
 
-        private void ProcessReschedule()
+        private void ProcessReschedule(long now, long clockDrift)
         {
             foreach (var schedule in _rescheduleRegistrations)
             {
-                var nextDeadline = _tickDuration * _tick + schedule.Offset;
-                schedule.Deadline = nextDeadline;
+                schedule.Deadline = now - clockDrift + schedule.Offset;
                 PlaceInBucket(schedule);
             }
 
@@ -353,11 +362,11 @@ namespace Akka.Actor
 
         private void ProcessReschedule()
         {
-            foreach (var sched in _rescheduleRegistrations)
+            foreach (var schedule in _rescheduleRegistrations)
             {
-                var nextDeadline = Util.MonotonicClock.GetTicksHighRes() - _startTime + sched.Offset;
-                sched.Deadline = nextDeadline;
-                PlaceInBucket(sched);
+                var nextDeadline = Util.MonotonicClock.GetTicksHighRes() - _startTime + schedule.Offset;
+                schedule.Deadline = nextDeadline;
+                PlaceInBucket(schedule);
             }
 
             _rescheduleRegistrations.Clear();
