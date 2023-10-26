@@ -5,6 +5,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
+using System.Linq;
 using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Benchmarks.Configurations;
@@ -22,7 +23,7 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [Params(StateStoreMode.Persistence, StateStoreMode.DData)]
         public StateStoreMode StateMode;
 
-        [Params(1000)]
+        [Params(1000, 5000, 10000)]
         public int EntityCount;
 
         [Params(true, false)]
@@ -74,11 +75,13 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [Benchmark]
         public async Task SpawnEntities()
         {
-            for (var i = 0; i < EntityCount; i++)
-            {
-                var msg = new ShardedMessage(i.ToString(), i);
-                await _shardRegion1.Ask<ShardedMessage>(msg);
-            }
+            var tasks = Enumerable.Range(0, EntityCount)
+                .Select(i =>
+                {
+                    var msg = new ShardedMessage(i.ToString(), i);
+                    return _shardRegion1.Ask<ShardedMessage>(msg);
+                });
+            await Task.WhenAll(tasks);
         }
         
         [GlobalCleanup]
