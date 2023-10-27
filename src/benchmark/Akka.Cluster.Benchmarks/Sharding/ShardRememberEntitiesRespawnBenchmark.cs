@@ -1,9 +1,9 @@
-﻿// //-----------------------------------------------------------------------
-// // <copyright file="ShardRememberEntitiesSpawnBenchmark.cs" company="Akka.NET Project">
-// //     Copyright (C) 2009-2023 Lightbend Inc. <http://www.lightbend.com>
-// //     Copyright (C) 2013-2023 .NET Foundation <https://github.com/akkadotnet/akka.net>
-// // </copyright>
-// //-----------------------------------------------------------------------
+﻿//-----------------------------------------------------------------------
+// <copyright file="ShardRememberEntitiesSpawnBenchmark.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2023 Lightbend Inc. <http://www.lightbend.com>
+//     Copyright (C) 2013-2023 .NET Foundation <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
 
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,6 +13,7 @@ using Akka.Cluster.Sharding;
 using Akka.Configuration;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Engines;
+using Microsoft.Data.Sqlite;
 using static Akka.Cluster.Benchmarks.Sharding.ShardingHelper;
 
 namespace Akka.Cluster.Benchmarks.Sharding
@@ -30,6 +31,8 @@ namespace Akka.Cluster.Benchmarks.Sharding
         public int BatchSize = 20;
 
         private Config _config;
+        private SqliteConnection _dbCon;
+        
         private ActorSystem _sys1;
 
         private IActorRef _shardRegion1;
@@ -43,6 +46,17 @@ namespace Akka.Cluster.Benchmarks.Sharding
                 StateStoreMode.DData => CreateDDataConfig(true),
                 _ => null
             };
+            
+            // Sqlite in-memory database connection has to be kept open so that it would not be disposed
+            if (string.IsNullOrEmpty(ConnectionString))
+            {
+                _dbCon = null;
+            }
+            else
+            {
+                _dbCon = new SqliteConnection(ConnectionString);
+                await _dbCon.OpenAsync();
+            }
 
             _sys1 = ActorSystem.Create("BenchSys", _config);
 
@@ -79,9 +93,16 @@ namespace Akka.Cluster.Benchmarks.Sharding
         }
         
         [IterationCleanup]
-        public void Cleanup()
+        public void IterationCleanup()
         {
             CoordinatedShutdown.Get(_sys1).Run(CoordinatedShutdown.ActorSystemTerminateReason.Instance).Wait();
+        }
+
+        [GlobalCleanup]
+        public async Task Cleanup()
+        {
+            if(_dbCon != null)
+                await _dbCon.CloseAsync();
         }
     }
 }

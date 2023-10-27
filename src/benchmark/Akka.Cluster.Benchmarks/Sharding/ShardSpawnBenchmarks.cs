@@ -23,7 +23,7 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [Params(StateStoreMode.Persistence, StateStoreMode.DData)]
         public StateStoreMode StateMode;
 
-        [Params(1000, 5000, 10000)]
+        [Params(1000)]
         public int EntityCount;
 
         [Params(true, false)]
@@ -39,9 +39,8 @@ namespace Akka.Cluster.Benchmarks.Sharding
 
         public static int _shardRegionId = 0;
         
-        
-        [GlobalSetup]
-        public async Task Setup()
+        [IterationSetup]
+        public void IterationSetup()
         {
             var config = StateMode switch
             {
@@ -56,17 +55,10 @@ namespace Akka.Cluster.Benchmarks.Sharding
             var c1 = Cluster.Get(_sys1);
             var c2 = Cluster.Get(_sys2);
 
-            await c1.JoinAsync(c1.SelfAddress);
-            await c2.JoinAsync(c1.SelfAddress);
-        }
-
-        [IterationSetup]
-        public void IterationSetup()
-        {
-            /*
-             * Create a new set of shard regions each time, so all of the shards are freshly allocated
-             * on each benchmark run. 
-             */
+            Task.WhenAll(
+                c1.JoinAsync(c1.SelfAddress),
+                c2.JoinAsync(c1.SelfAddress)).Wait();
+            
             _shardRegion1 = StartShardRegion(_sys1, "entities" + _shardRegionId);
             _shardRegion2 = StartShardRegion(_sys2, "entities" + _shardRegionId);
             _shardRegionId++;
@@ -84,13 +76,13 @@ namespace Akka.Cluster.Benchmarks.Sharding
             await Task.WhenAll(tasks);
         }
         
-        [GlobalCleanup]
-        public async Task Cleanup()
+        [IterationCleanup]
+        public void Cleanup()
         {
             var t2 = CoordinatedShutdown.Get(_sys2).Run(CoordinatedShutdown.ActorSystemTerminateReason.Instance);
             var t1 = CoordinatedShutdown.Get(_sys1).Run(CoordinatedShutdown.ActorSystemTerminateReason.Instance);
            
-            await Task.WhenAll(t1, t2);
+            Task.WhenAll(t1, t2).Wait();
         }
     }
 }

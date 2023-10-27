@@ -329,20 +329,34 @@ namespace Akka.Persistence.Sql.Common.Journal
             if (!_settings.AutoInitialize) 
                 return new Status.Success(NotUsed.Instance);
 
-            try
+            var retry = 0;
+            while (true)
             {
-                using (var connection = CreateDbConnection())
+                try
                 {
-                    await connection.OpenAsync();
-                    using (var cancellationToken = CancellationTokenSource.CreateLinkedTokenSource(_pendingRequestsCancellation.Token))
+                    using (var connection = CreateDbConnection())
                     {
-                        await QueryExecutor.CreateTablesAsync(connection, cancellationToken.Token);
+                        await connection.OpenAsync();
+                        using (var cancellationToken = CancellationTokenSource.CreateLinkedTokenSource(_pendingRequestsCancellation.Token))
+                        {
+                            await QueryExecutor.CreateTablesAsync(connection, cancellationToken.Token);
+                        }
+                    }
+                    break;
+                }
+                catch (Exception e)
+                {
+                    retry++;
+                    if(retry <= 5)
+                    {
+                        _log.Warning(e, "Failed to initialize database tables, retrying {0}/5", retry);
+                    }
+                    else
+                    {
+                        _log.Error(e, "Failed to initialize database tables");
+                        return new Status.Failure(e);
                     }
                 }
-            }
-            catch (Exception e)
-            {
-                return new Status.Failure(e);
             }
             return new Status.Success(NotUsed.Instance);
         }
