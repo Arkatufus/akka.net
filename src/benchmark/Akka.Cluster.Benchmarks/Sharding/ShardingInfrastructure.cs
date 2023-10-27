@@ -211,7 +211,8 @@ namespace Akka.Cluster.Benchmarks.Sharding
 
     public static class ShardingHelper
     {
-        public static AtomicCounter DbId = new(0);
+        public readonly static AtomicCounter DbId = new AtomicCounter(0);
+        public static string ConnectionString { get; private set; }
 
         internal static string BoolToToggle(bool val)
         {
@@ -220,8 +221,7 @@ namespace Akka.Cluster.Benchmarks.Sharding
         
         public static Config CreatePersistenceConfig(bool rememberEntities = false)
         {
-            var connectionString =
-                "Filename=file:memdb-journal-" + DbId.IncrementAndGet() + ".db;Mode=Memory;Cache=Shared";
+            ConnectionString = "Filename=file:memdb-journal-" + DbId.IncrementAndGet() + ".db;Mode=Memory;Cache=Shared";
             var config = $@"
                 akka.actor.provider = cluster
                 akka.remote.dot-netty.tcp.port = 0
@@ -231,14 +231,14 @@ namespace Akka.Cluster.Benchmarks.Sharding
                 akka.persistence.journal.sqlite {{
                     class = ""Akka.Persistence.Sqlite.Journal.SqliteJournal, Akka.Persistence.Sqlite""
                     auto-initialize = on
-                    connection-string = ""{connectionString}""
+                    connection-string = ""{ConnectionString}""
                 }}
                 akka.persistence.snapshot-store {{
                     plugin = ""akka.persistence.snapshot-store.sqlite""
                     sqlite {{
                         class = ""Akka.Persistence.Sqlite.Snapshot.SqliteSnapshotStore, Akka.Persistence.Sqlite""
                         auto-initialize = on
-                        connection-string = ""{connectionString}""
+                        connection-string = ""{ConnectionString}""
                     }}
                 }}";
 
