@@ -349,11 +349,11 @@ namespace Akka.Persistence.Sql.Common.Journal
                     retry++;
                     if(retry <= 5)
                     {
-                        _log.Warning(e, "Failed to initialize database tables, retrying {0}/5", retry);
+                        Log.Warning(e, "Failed to initialize database tables, retrying {0}/5", retry);
                     }
                     else
                     {
-                        _log.Error(e, "Failed to initialize database tables");
+                        Log.Error(e, "Failed to initialize database tables");
                         return new Status.Failure(e);
                     }
                 }
