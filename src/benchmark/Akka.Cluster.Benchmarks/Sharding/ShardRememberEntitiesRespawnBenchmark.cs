@@ -5,6 +5,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Akka.Actor;
@@ -40,10 +41,18 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [GlobalSetup]
         public async Task Setup()
         {
+            // delete older lmdb database, if it exists
+            var ddataDb = Path.Join(".", "ddata-BenchSys-replicator-55555", "data.mdb");
+            if(File.Exists(ddataDb))
+                File.Delete(ddataDb);
+            
+            // ddata lmdb uses a combination of actor system name and port number to name the state database
+            _config = ConfigurationFactory.ParseString("akka.remote.dot-netty.tcp.port = 55555");
+            
             _config = StateMode switch
             {
-                StateStoreMode.Persistence => CreatePersistenceConfig(true),
-                StateStoreMode.DData => CreateDDataConfig(true),
+                StateStoreMode.Persistence => _config.WithFallback(CreatePersistenceConfig(true)),
+                StateStoreMode.DData => _config.WithFallback(CreateDDataConfig(true)),
                 _ => null
             };
             

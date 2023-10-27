@@ -5,6 +5,7 @@
 // // </copyright>
 // //-----------------------------------------------------------------------
 
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Akka.Actor;
@@ -37,11 +38,24 @@ namespace Akka.Cluster.Benchmarks.Sharding
         private IActorRef _shardRegion1;
         private IActorRef _shardRegion2;
 
-        public static int _shardRegionId = 0;
-        
         [IterationSetup]
         public void IterationSetup()
         {
+            var dirs = Directory.EnumerateDirectories(".")
+                .Where(s => s.Contains("ddata-BenchSys-replicator"))
+                .ToList();
+            var files = dirs.Select(s => Path.Join(s, "data.mdb"));
+            foreach (var file in files)
+            {
+                if(File.Exists(file))
+                    File.Delete(file);
+            }
+
+            foreach (var dir in dirs)
+            {
+                Directory.Delete(dir);
+            }
+            
             var config = StateMode switch
             {
                 StateStoreMode.Persistence => CreatePersistenceConfig(RememberEntities),
@@ -59,9 +73,8 @@ namespace Akka.Cluster.Benchmarks.Sharding
                 c1.JoinAsync(c1.SelfAddress),
                 c2.JoinAsync(c1.SelfAddress)).Wait();
             
-            _shardRegion1 = StartShardRegion(_sys1, "entities" + _shardRegionId);
-            _shardRegion2 = StartShardRegion(_sys2, "entities" + _shardRegionId);
-            _shardRegionId++;
+            _shardRegion1 = StartShardRegion(_sys1, "entities");
+            _shardRegion2 = StartShardRegion(_sys2, "entities");
         }
 
         [Benchmark]
@@ -79,10 +92,10 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [IterationCleanup]
         public void Cleanup()
         {
-            var t2 = CoordinatedShutdown.Get(_sys2).Run(CoordinatedShutdown.ActorSystemTerminateReason.Instance);
-            var t1 = CoordinatedShutdown.Get(_sys1).Run(CoordinatedShutdown.ActorSystemTerminateReason.Instance);
+            ((ExtendedActorSystem) _sys1).Guardian.Stop();
+            ((ExtendedActorSystem) _sys2).Guardian.Stop();
            
-            Task.WhenAll(t1, t2).Wait();
+            Task.WhenAll(_sys1.Terminate(), _sys2.Terminate()).Wait();
         }
     }
 }
