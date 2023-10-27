@@ -19,7 +19,7 @@ using static Akka.Cluster.Benchmarks.Sharding.ShardingHelper;
 namespace Akka.Cluster.Benchmarks.Sharding
 {
     [Config(typeof(MonitoringConfig))]
-    [SimpleJob(RunStrategy.ColdStart, targetCount:1, warmupCount:0, launchCount:5)]
+    [SimpleJob(RunStrategy.ColdStart, warmupCount:0, launchCount:5)]
     public class ShardRememberEntitiesRespawnBenchmark
     {
         [Params(StateStoreMode.Persistence, StateStoreMode.DData)]
