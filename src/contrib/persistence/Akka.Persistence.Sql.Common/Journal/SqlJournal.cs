@@ -39,6 +39,7 @@ namespace Akka.Persistence.Sql.Common.Journal
         {
             Settings = new JournalSettings(journalConfig);
             _pendingRequestsCancellation = new CancellationTokenSource();
+            _log = Context.GetLogger();
         }
 
         public IStash Stash { get; set; }

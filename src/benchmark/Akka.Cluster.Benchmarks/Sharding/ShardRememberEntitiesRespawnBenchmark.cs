@@ -5,6 +5,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Akka.Actor;
@@ -25,7 +26,10 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [Params(StateStoreMode.Persistence, StateStoreMode.DData)]
         public StateStoreMode StateMode;
 
-        [Params(1000, 5000, 10000)]
+        [Params(RememberEntitiesStore.Eventsourced, RememberEntitiesStore.DData)]
+        public RememberEntitiesStore EntitiesStoreMode;
+        
+        [Params(1000)]
         public int EntityCount;
 
         public int BatchSize = 20;
@@ -40,12 +44,14 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [GlobalSetup]
         public async Task Setup()
         {
-            _config = StateMode switch
-            {
-                StateStoreMode.Persistence => CreatePersistenceConfig(true),
-                StateStoreMode.DData => CreateDDataConfig(true),
-                _ => null
-            };
+            // delete older lmdb database, if it exists
+            var ddataDb = Path.Join(".", "ddata-BenchSys-replicator-55555", "data.mdb");
+            if(File.Exists(ddataDb))
+                File.Delete(ddataDb);
+            
+            // ddata lmdb uses a combination of actor system name and port number to name the state database
+            _config = ConfigurationFactory.ParseString("akka.remote.dot-netty.tcp.port = 55555")
+                .WithFallback(CreatePersistenceConfig(StateMode, true, EntitiesStoreMode));
             
             // Sqlite in-memory database connection has to be kept open so that it would not be disposed
             if (string.IsNullOrEmpty(ConnectionString))
@@ -95,7 +101,8 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [IterationCleanup]
         public void IterationCleanup()
         {
-            CoordinatedShutdown.Get(_sys1).Run(CoordinatedShutdown.ActorSystemTerminateReason.Instance).Wait();
+            ((ExtendedActorSystem) _sys1).Guardian.Stop();
+            _sys1.Terminate().Wait();
         }
 
         [GlobalCleanup]

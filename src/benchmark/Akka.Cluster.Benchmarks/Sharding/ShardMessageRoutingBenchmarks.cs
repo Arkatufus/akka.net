@@ -52,12 +52,7 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [GlobalSetup]
         public void Setup()
         {
-            var config = StateMode switch
-            {
-                StateStoreMode.Persistence => CreatePersistenceConfig(),
-                StateStoreMode.DData => CreateDDataConfig(),
-                _ => null
-            };
+            var config = CreatePersistenceConfig(StateMode);
 
             _sys1 = ActorSystem.Create("BenchSys", config);
             _sys2 = ActorSystem.Create("BenchSys", config);
@@ -95,12 +90,7 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [GlobalSetup]
         public async Task Setup()
         {
-            var config = StateMode switch
-            {
-                StateStoreMode.Persistence => CreatePersistenceConfig(),
-                StateStoreMode.DData => CreateDDataConfig(),
-                _ => null
-            };
+            var config = CreatePersistenceConfig(StateMode);
 
             _sys1 = ActorSystem.Create("BenchSys", config);
             _sys2 = ActorSystem.Create("BenchSys", config);

@@ -5,6 +5,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
+using System;
 using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Cluster.Sharding;
@@ -219,42 +220,62 @@ namespace Akka.Cluster.Benchmarks.Sharding
             return val ? "on" : "off";
         }
         
-        public static Config CreatePersistenceConfig(bool rememberEntities = false)
+        public static Config CreatePersistenceConfig(
+            StateStoreMode storeMode, 
+            bool rememberEntities = false, 
+            RememberEntitiesStore entitiesStoreMode = RememberEntitiesStore.DData)
         {
             ConnectionString = "Filename=file:memdb-journal-" + DbId.IncrementAndGet() + ".db;Mode=Memory;Cache=Shared";
-            var config = $@"
-                akka.actor.provider = cluster
-                akka.remote.dot-netty.tcp.port = 0
-                akka.cluster.sharding.state-store-mode=persistence
-                akka.cluster.sharding.remember-entities = {BoolToToggle(rememberEntities)}
-                akka.persistence.journal.plugin = ""akka.persistence.journal.sqlite""
-                akka.persistence.journal.sqlite {{
-                    class = ""Akka.Persistence.Sqlite.Journal.SqliteJournal, Akka.Persistence.Sqlite""
-                    auto-initialize = on
-                    connection-string = ""{ConnectionString}""
-                }}
-                akka.persistence.snapshot-store {{
-                    plugin = ""akka.persistence.snapshot-store.sqlite""
-                    sqlite {{
-                        class = ""Akka.Persistence.Sqlite.Snapshot.SqliteSnapshotStore, Akka.Persistence.Sqlite""
-                        auto-initialize = on
-                        connection-string = ""{ConnectionString}""
-                    }}
-                }}";
+            var config = $$"""
+akka {
+    actor.provider = cluster
+    remote.dot-netty.tcp.port = 0
+    cluster {
+        sharding {
+            state-store-mode = {{storeMode.ToStateStoreMode()}}
+            remember-entities = {{BoolToToggle(rememberEntities)}}
+            remember-entities-store = {{entitiesStoreMode.ToRememberEntitiesStore()}}
+        }
+    }
+    persistence {
+        journal {
+            plugin = "akka.persistence.journal.sqlite"
+            sqlite {
+                class = "Akka.Persistence.Sqlite.Journal.SqliteJournal, Akka.Persistence.Sqlite"
+                auto-initialize = on
+                connection-string = "{{ConnectionString}}"
+            }
+        }
+        snapshot-store {
+            plugin = "akka.persistence.snapshot-store.sqlite"
+            sqlite {
+                class = "Akka.Persistence.Sqlite.Snapshot.SqliteSnapshotStore, Akka.Persistence.Sqlite"
+                auto-initialize = on
+                connection-string = "{{ConnectionString}}"
+            }
+        }
+    }
+}
+""";
 
             return config;
         }
 
-        public static Config CreateDDataConfig(bool rememberEntities = false)
-        {
-            var config = $@"
-                akka.actor.provider = cluster
-                akka.remote.dot-netty.tcp.port = 0
-                akka.cluster.sharding.state-store-mode=ddata
-                akka.cluster.sharding.remember-entities = {BoolToToggle(rememberEntities)}";
+        public static string ToStateStoreMode(this StateStoreMode mode)
+            => mode switch
+            {
+                StateStoreMode.Persistence => "persistence",
+                StateStoreMode.DData => "ddata",
+                _ => throw new IndexOutOfRangeException()
+            };
 
-            return config;
-        }
+        public static string ToRememberEntitiesStore(this RememberEntitiesStore mode)
+            => mode switch
+            {
+                RememberEntitiesStore.Eventsourced => "eventsourced",
+                RememberEntitiesStore.DData => "ddata",
+                _ => throw new IndexOutOfRangeException()
+            };
 
         public static IActorRef StartShardRegion(ActorSystem system, string entityName = "entities")
         {

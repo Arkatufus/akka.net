@@ -23,11 +23,14 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [Params(StateStoreMode.Persistence, StateStoreMode.DData)]
         public StateStoreMode StateMode;
 
-        [Params(1000)]
-        public int EntityCount;
-
         [Params(true, false)]
         public bool RememberEntities;
+        
+        [Params(RememberEntitiesStore.Eventsourced, RememberEntitiesStore.DData)]
+        public RememberEntitiesStore EntitiesStoreMode;
+        
+        [Params(1000)]
+        public int EntityCount;
 
         public int BatchSize = 20;
 
@@ -42,12 +45,7 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [IterationSetup]
         public void IterationSetup()
         {
-            var config = StateMode switch
-            {
-                StateStoreMode.Persistence => CreatePersistenceConfig(RememberEntities),
-                StateStoreMode.DData => CreateDDataConfig(RememberEntities),
-                _ => null
-            };
+            var config = CreatePersistenceConfig(StateMode, RememberEntities, EntitiesStoreMode);
 
             _sys1 = ActorSystem.Create("BenchSys", config);
             _sys2 = ActorSystem.Create("BenchSys", config);
@@ -79,10 +77,10 @@ namespace Akka.Cluster.Benchmarks.Sharding
         [IterationCleanup]
         public void Cleanup()
         {
-            var t2 = CoordinatedShutdown.Get(_sys2).Run(CoordinatedShutdown.ActorSystemTerminateReason.Instance);
-            var t1 = CoordinatedShutdown.Get(_sys1).Run(CoordinatedShutdown.ActorSystemTerminateReason.Instance);
+            ((ExtendedActorSystem) _sys1).Guardian.Stop();
+            ((ExtendedActorSystem) _sys2).Guardian.Stop();
            
-            Task.WhenAll(t1, t2).Wait();
+            Task.WhenAll(_sys1.Terminate(), _sys2.Terminate()).Wait();
         }
     }
 }
