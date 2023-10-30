@@ -22,7 +22,7 @@ namespace Akka.Cluster.Benchmarks.Sharding
 {
     //[DotTraceDiagnoser]
     [Config(typeof(MonitoringConfig))]
-    [SimpleJob(RunStrategy.Monitoring, launchCount: 10, warmupCount: 10)]
+    [SimpleJob(RunStrategy.Monitoring, launchCount: 10, warmupCount: 10, iterationCount:1)]
     public class ShardMessageRoutingBenchmarks
     {
         [Params(StateStoreMode.Persistence, StateStoreMode.DData)]
