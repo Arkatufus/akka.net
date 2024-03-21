@@ -13,6 +13,7 @@ using Akka.Event;
 using Akka.TestKit;
 using Akka.Util.Internal;
 using FluentAssertions;
+using FluentAssertions.Extensions;
 using Xunit;
 using static Akka.Actor.FSMBase;
 
@@ -187,7 +188,48 @@ namespace Akka.Tests.Actor
             await ExpectTerminatedAsync(actor);
         }
 
+        [Fact]
+        public async Task Must_schedule_forwarded_repeated_ticks()
+        {
+            var probe = CreateTestProbe();
+            var actor = Sys.ActorOf(Props.Create(() => new TimerSenderActor(probe, null, interval.Seconds(), true)));
 
+            var message = new Tock(1);
+            actor.Tell(message);
+            await probe.WithinAsync(TimeSpan.FromSeconds(interval * 4) - TimeSpan.FromMilliseconds(200), async() =>
+            {
+                await probe.ExpectMsgAsync(message);
+                await probe.ExpectMsgAsync(message);
+                await probe.ExpectMsgAsync(message);
+            });
+
+            actor.Tell(End.Instance);
+            await probe.ExpectMsgAsync(new GotPostStop(false));
+        }
+        
+        [Fact]
+        public async Task Must_forward_messages()
+        {
+            var probe = CreateTestProbe();
+            var actor = Sys.ActorOf(Props.Create(() => new TimerSenderActor(probe, null, 100.Milliseconds(), false)));
+            
+            actor.Tell("test");
+            await probe.ExpectMsgAsync("test");
+            probe.LastSender.Should().Be(actor);
+        }
+
+        [Fact]
+        public async Task Must_forward_AutoReceivedMessages()
+        {
+            var probe = CreateTestProbe();
+            var targetActor = Sys.ActorOf(Props.Create(() => new TimerSenderActor(probe, null, 100.Milliseconds(), false)));
+            var actor = Sys.ActorOf(Props.Create(() => new TimerSenderActor(targetActor, null, 100.Milliseconds(), false)));
+
+            Watch(targetActor);
+            actor.Tell(AutoReceive.Instance);
+
+            await ExpectTerminatedAsync(targetActor);
+        }
         #region Actors
 
         internal interface ICommand
@@ -529,6 +571,42 @@ namespace Akka.Tests.Actor
                 });
 
                 StartWith(TheState.Instance, initial);
+            }
+        }
+        
+        internal sealed class TimerSenderActor: ReceiveActor, IWithTimers
+        {
+            private const string TimerKey = "timer_key";
+            
+            private readonly IActorRef _receiver;
+            private readonly IActorRef _sender;
+            public ITimerScheduler Timers { get; set; } = null!;
+
+            public TimerSenderActor(IActorRef receiver, IActorRef? sender, TimeSpan duration, bool repeat)
+            {
+                _receiver = receiver;
+                _sender = sender ?? Self;
+
+                Receive<End>(_ => Context.Stop(Self));
+                
+                Receive<AutoReceive>(_ =>
+                {
+                    Timers.StartSingleTimer(TimerKey, PoisonPill.Instance, duration, _receiver, _sender);
+                });
+                
+                ReceiveAny(msg =>
+                {
+                    if(repeat)
+                        Timers.StartPeriodicTimer(TimerKey, msg, duration, duration, _receiver, _sender);
+                    else
+                        Timers.StartSingleTimer(TimerKey, msg, duration, _receiver, _sender);
+                });
+            }
+
+            protected override void PostStop()
+            {
+                base.PostStop();
+                _receiver.Tell(new GotPostStop(Timers.IsTimerActive(TimerKey)));
             }
         }
 

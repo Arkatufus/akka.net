@@ -183,25 +183,36 @@ namespace Akka.Actor
             {
                 if (this is IWithTimers { Timers: TimerScheduler timers })
                 {
-                    switch (timers.InterceptTimerMsg(Context.System.Log, tm))
+                    // process message for self
+                    if (tm.Receiver.Equals(Self))
                     {
-                        case IAutoReceivedMessage m:
-                            ((ActorCell)Context).AutoReceiveMessage(new Envelope(m, Self));
-                            return true;
+                        switch (timers.InterceptTimerMsg(Context.System.Log, tm))
+                        {
+                            case IAutoReceivedMessage m:
+                                ((ActorCell)Context).AutoReceiveMessage(new Envelope(m, tm.Sender));
+                                return true;
 
-                        case null:
-                            // discard
-                            return true;
+                            case null:
+                                // discard
+                                return true;
 
-                        case var m:
-                            if (this is IActorStash)
-                            {
-                                var actorCell = (ActorCell)Context;
-                                // this is important for stash interaction, as stash will look directly at currentMessage #24557
-                                actorCell.CurrentMessage = m;
-                            }
-                            message = m;
-                            break;
+                            case var m:
+                                if (this is IActorStash)
+                                {
+                                    var actorCell = (ActorCell)Context;
+                                    // this is important for stash interaction, as stash will look directly at currentMessage #24557
+                                    actorCell.CurrentMessage = m;
+                                }
+                                message = m;
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        var m = timers.InterceptTimerMsg(Context.System.Log, tm);
+                        if(m is not null)
+                            tm.Receiver.Tell(m, tm.Sender);
+                        return true;
                     }
                 }
                 else

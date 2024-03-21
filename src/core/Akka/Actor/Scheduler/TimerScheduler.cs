@@ -46,6 +46,8 @@ namespace Akka.Actor.Scheduler
             object Key { get; }
             int Generation { get; }
             TimerScheduler Owner { get; }
+            IActorRef Receiver { get; }
+            IActorRef Sender { get; }
         }
 
         private class TimerMsg : ITimerMsg, INoSerializationVerificationNeeded
@@ -53,12 +55,16 @@ namespace Akka.Actor.Scheduler
             public object Key { get; }
             public int Generation { get; }
             public TimerScheduler Owner { get; }
+            public IActorRef Receiver { get; }
+            public IActorRef Sender { get; }
 
-            public TimerMsg(object key, int generation, TimerScheduler owner)
+            public TimerMsg(object key, int generation, TimerScheduler owner, IActorRef receiver, IActorRef sender)
             {
-                this.Key = key;
-                this.Generation = generation;
-                this.Owner = owner;
+                Key = key;
+                Generation = generation;
+                Owner = owner;
+                Receiver = receiver;
+                Sender = sender;
             }
 
             public override string ToString()
@@ -67,10 +73,12 @@ namespace Akka.Actor.Scheduler
             }
         }
 
+        internal sealed record ValidTimerMessage(object Message, IActorRef Receiver, IActorRef Sender);
+
         private class TimerMsgNotInfluenceReceiveTimeout : TimerMsg, INotInfluenceReceiveTimeout
         {
-            public TimerMsgNotInfluenceReceiveTimeout(object key, int generation, TimerScheduler owner)
-                : base(key, generation, owner)
+            public TimerMsgNotInfluenceReceiveTimeout(object key, int generation, TimerScheduler owner, IActorRef receiver, IActorRef sender)
+                : base(key, generation, owner, receiver, sender)
             {
             }
         }
@@ -102,9 +110,14 @@ namespace Akka.Actor.Scheduler
         /// <param name="interval">Interval</param>
         public void StartPeriodicTimer(object key, object msg, TimeSpan interval)
         {
-            StartTimer(key, msg, interval, interval, true);
+            StartTimer(key, msg, interval, interval, true, _ctx.Self, Nobody.Instance);
         }
 
+        public void StartPeriodicTimer(object key, object msg, TimeSpan interval, IActorRef receiver, IActorRef sender)
+        {
+            StartTimer(key, msg, interval, interval, true, receiver, sender);
+        }
+        
         /// <summary>
         /// Start a periodic timer that will send <paramref name="msg"/> to the "Self" actor at
         /// a fixed <paramref name="interval"/>.
@@ -120,7 +133,12 @@ namespace Akka.Actor.Scheduler
         /// <param name="interval">Interval</param>
         public void StartPeriodicTimer(object key, object msg, TimeSpan initialDelay, TimeSpan interval)
         {
-            StartTimer(key, msg, interval, initialDelay, true);
+            StartTimer(key, msg, interval, initialDelay, true, _ctx.Self, Nobody.Instance);
+        }
+
+        public void StartPeriodicTimer(object key, object msg, TimeSpan initialDelay, TimeSpan interval, IActorRef receiver, IActorRef sender)
+        {
+            StartTimer(key, msg, interval, initialDelay, true, receiver, sender);
         }
 
         /// <summary>
@@ -137,7 +155,12 @@ namespace Akka.Actor.Scheduler
         /// <param name="timeout">Interval</param>
         public void StartSingleTimer(object key, object msg, TimeSpan timeout)
         {
-            StartTimer(key, msg, timeout, TimeSpan.Zero, false);
+            StartTimer(key, msg, timeout, TimeSpan.Zero, false, _ctx.Self, Nobody.Instance);
+        }
+
+        public void StartSingleTimer(object key, object msg, TimeSpan timeout, IActorRef receiver, IActorRef sender)
+        {
+            StartTimer(key, msg, timeout, TimeSpan.Zero, false, receiver, sender);
         }
 
         /// <summary>
@@ -187,7 +210,7 @@ namespace Akka.Actor.Scheduler
         }
 
 
-        private void StartTimer(object key, object msg, TimeSpan timeout, TimeSpan initialDelay, bool repeat)
+        private void StartTimer(object key, object msg, TimeSpan timeout, TimeSpan initialDelay, bool repeat, IActorRef receiver, IActorRef sender)
         {
             if (_timers.TryGetValue(key, out var timer))
                 CancelTimer(timer);
@@ -196,9 +219,9 @@ namespace Akka.Actor.Scheduler
 
             ITimerMsg timerMsg;
             if (msg is INotInfluenceReceiveTimeout)
-                timerMsg = new TimerMsgNotInfluenceReceiveTimeout(key, nextGen, this);
+                timerMsg = new TimerMsgNotInfluenceReceiveTimeout(key, nextGen, this, receiver, sender);
             else
-                timerMsg = new TimerMsg(key, nextGen, this);
+                timerMsg = new TimerMsg(key, nextGen, this, receiver, sender);
 
             ICancelable task;
             if (repeat)

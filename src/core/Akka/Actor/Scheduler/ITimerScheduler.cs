@@ -36,6 +36,8 @@ namespace Akka.Actor
         /// <param name="interval">Interval</param>
         void StartPeriodicTimer(object key, object msg, TimeSpan interval);
 
+        public void StartPeriodicTimer(object key, object msg, TimeSpan interval, IActorRef receiver, IActorRef sender);
+
         /// <summary>
         /// Start a periodic timer that will send <paramref name="msg"/> to the "Self" actor at
         /// a fixed <paramref name="interval"/>.
@@ -51,6 +53,8 @@ namespace Akka.Actor
         /// <param name="interval">Interval</param>
         void StartPeriodicTimer(object key, object msg, TimeSpan initialDelay, TimeSpan interval);
 
+        public void StartPeriodicTimer(object key, object msg, TimeSpan initialDelay, TimeSpan interval, IActorRef receiver, IActorRef sender);
+        
         /// <summary>
         /// Start a timer that will send <paramref name="msg"/> once to the "Self" actor after
         /// the given <paramref name="timeout"/>.
@@ -65,6 +69,8 @@ namespace Akka.Actor
         /// <param name="timeout">Interval</param>
         void StartSingleTimer(object key, object msg, TimeSpan timeout);
 
+        public void StartSingleTimer(object key, object msg, TimeSpan timeout, IActorRef receiver, IActorRef sender);
+        
         /// <summary>
         /// Check if a timer with a given <paramref name="key"/> is active.
         /// </summary>
