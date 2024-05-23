@@ -141,7 +141,7 @@ namespace Akka.Event
             var origin = IsReal(d.Sender) ? $" from {d.Sender}" : "";
             var unwrapped = WrappedMessage.Unwrap(d.Message);
             var messageStr = unwrapped?.GetType().Name ?? "null";
-            var wrappedIn = (d.Message is IWrappedMessage) ? $" wrapped in [${d.Message.GetType().Name}]" : "";
+            var wrappedIn = (d.Message is IWrappedMessage) ? $" wrapped in [{d.Message.GetType().Name}]" : "";
 
             string logMessage;
             switch (d)
