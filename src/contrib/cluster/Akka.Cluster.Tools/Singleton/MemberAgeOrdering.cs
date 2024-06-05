@@ -5,6 +5,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
+using System;
 using System.Collections.Generic;
 
 namespace Akka.Cluster.Tools.Singleton
@@ -26,6 +27,11 @@ namespace Akka.Cluster.Tools.Singleton
         /// <inheritdoc/>
         public int Compare(Member x, Member y)
         {
+            if (x is null) 
+                throw new ArgumentNullException(nameof(x));
+            if (y is null) 
+                throw new ArgumentNullException(nameof(y));
+            
             if (_considerAppVersion)
             {
                 // prefer nodes with the highest app version, even if they're younger

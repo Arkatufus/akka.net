@@ -52,12 +52,11 @@ namespace Akka.Cluster.Tools.Singleton.Serialization
         /// <returns>A byte array containing the serialized object</returns>
         public override byte[] ToBinary(object obj)
         {
-            if (obj is HandOverToMe) return EmptyBytes;
-            if (obj is HandOverInProgress) return EmptyBytes;
-            if (obj is HandOverDone) return EmptyBytes;
-            if (obj is TakeOverFromMe) return EmptyBytes;
-
-            throw new ArgumentException($"Cannot serialize object of type [{obj.GetType()}] in [{GetType()}]");
+            return obj switch
+            {
+                HandOverToMe or HandOverInProgress or HandOverDone or TakeOverFromMe => EmptyBytes,
+                _ => throw new ArgumentException($"Cannot serialize object of type [{obj.GetType()}] in [{GetType()}]")
+            };
         }
 
         /// <summary>
@@ -90,12 +89,14 @@ namespace Akka.Cluster.Tools.Singleton.Serialization
         /// <returns>The manifest needed for the deserialization of the specified <paramref name="o" />.</returns>
         public override string Manifest(object o)
         {
-            if (o is HandOverToMe) return HandOverToMeManifest;
-            if (o is HandOverInProgress) return HandOverInProgressManifest;
-            if (o is HandOverDone) return HandOverDoneManifest;
-            if (o is TakeOverFromMe) return TakeOverFromMeManifest;
-
-            throw new ArgumentException($"Cannot serialize object of type [{o.GetType()}] in [{GetType()}]");
+            return o switch
+            {
+                HandOverToMe => HandOverToMeManifest,
+                HandOverInProgress => HandOverInProgressManifest,
+                HandOverDone => HandOverDoneManifest,
+                TakeOverFromMe => TakeOverFromMeManifest,
+                _ => throw new ArgumentException($"Cannot serialize object of type [{o.GetType()}] in [{GetType()}]")
+            };
         }
     }
 }

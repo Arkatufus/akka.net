@@ -16,11 +16,12 @@ using Akka.Configuration;
 using Akka.Coordination;
 using Akka.Dispatch;
 using Akka.Event;
-using Akka.Pattern;
 using Akka.Remote;
 using Akka.Util.Internal;
 using static Akka.Cluster.ClusterEvent;
+using Debug = System.Diagnostics.Debug;
 
+#nullable enable
 namespace Akka.Cluster.Tools.Singleton
 {
     /// <summary>
@@ -205,9 +206,9 @@ namespace Akka.Cluster.Tools.Singleton
         /// TBD
         /// </summary>
         /// <param name="oldest">TBD</param>
-        public YoungerData(List<UniqueAddress> oldest)
+        public YoungerData(List<UniqueAddress>? oldest)
         {
-            Oldest = oldest;
+            Oldest = oldest ?? new List<UniqueAddress>();
         }
     }
 
@@ -226,9 +227,9 @@ namespace Akka.Cluster.Tools.Singleton
         /// TBD
         /// </summary>
         /// <param name="previousOldest">TBD</param>
-        public BecomingOldestData(List<UniqueAddress> previousOldest)
+        public BecomingOldestData(List<UniqueAddress>? previousOldest)
         {
-            PreviousOldest = previousOldest;
+            PreviousOldest = previousOldest ?? new List<UniqueAddress>();
         }
     }
 
@@ -241,13 +242,13 @@ namespace Akka.Cluster.Tools.Singleton
         /// <summary>
         /// TBD
         /// </summary>
-        public IActorRef Singleton { get; }
+        public IActorRef? Singleton { get; }
 
         /// <summary>
         /// TBD
         /// </summary>
         /// <param name="singleton">TBD</param>
-        public OldestData(IActorRef singleton)
+        public OldestData(IActorRef? singleton)
         {
             Singleton = singleton;
         }
@@ -262,19 +263,19 @@ namespace Akka.Cluster.Tools.Singleton
         /// <summary>
         /// TBD
         /// </summary>
-        public IActorRef Singleton { get; }
+        public IActorRef? Singleton { get; }
 
         /// <summary>
         /// TBD
         /// </summary>
-        public UniqueAddress NewOldest { get; }
+        public UniqueAddress? NewOldest { get; }
 
         /// <summary>
         /// TBD
         /// </summary>
         /// <param name="singleton">TBD</param>
         /// <param name="newOldest">TBD</param>
-        public WasOldestData(IActorRef singleton, UniqueAddress newOldest)
+        public WasOldestData(IActorRef? singleton, UniqueAddress? newOldest)
         {
             Singleton = singleton;
             NewOldest = newOldest;
@@ -296,14 +297,14 @@ namespace Akka.Cluster.Tools.Singleton
         /// <summary>
         /// TBD
         /// </summary>
-        public IActorRef HandOverTo { get; }
+        public IActorRef? HandOverTo { get; }
 
         /// <summary>
         /// TBD
         /// </summary>
         /// <param name="singleton">TBD</param>
         /// <param name="handOverTo">TBD</param>
-        public HandingOverData(IActorRef singleton, IActorRef handOverTo)
+        public HandingOverData(IActorRef singleton, IActorRef? handOverTo)
         {
             Singleton = singleton;
             HandOverTo = handOverTo;
@@ -358,14 +359,14 @@ namespace Akka.Cluster.Tools.Singleton
         /// <summary>
         /// TBD
         /// </summary>
-        public IActorRef Singleton { get; }
+        public IActorRef? Singleton { get; }
 
         /// <summary>
         /// TBD
         /// </summary>
         /// <param name="leaseRequestInProgress">TBD</param>
         /// <param name="singleton">TBD</param>
-        public AcquiringLeaseData(bool leaseRequestInProgress, IActorRef singleton)
+        public AcquiringLeaseData(bool leaseRequestInProgress, IActorRef? singleton)
         {
             LeaseRequestInProgress = leaseRequestInProgress;
             Singleton = singleton;
@@ -622,7 +623,7 @@ namespace Akka.Cluster.Tools.Singleton
         private bool _selfExited;
 
         // started when self member is Up
-        private IActorRef _oldestChangedBuffer;
+        private IActorRef? _oldestChangedBuffer;
         // keep track of previously removed members
         private ImmutableDictionary<UniqueAddress, Deadline> _removed = ImmutableDictionary<UniqueAddress, Deadline>.Empty;
         private readonly TimeSpan _removalMargin;
@@ -630,14 +631,15 @@ namespace Akka.Cluster.Tools.Singleton
         private readonly int _maxTakeOverRetries;
         private readonly Cluster _cluster = Cluster.Get(Context.System);
         private readonly UniqueAddress _selfUniqueAddress;
-        private ILoggingAdapter _log;
+        private ILoggingAdapter? _log;
 
         private readonly CoordinatedShutdown _coordShutdown = CoordinatedShutdown.Get(Context.System);
         private readonly TaskCompletionSource<Done> _memberExitingProgress = new();
 
-        private readonly string singletonLeaseName;
-        private readonly Lease lease;
-        private readonly TimeSpan leaseRetryInterval = TimeSpan.FromSeconds(5); // won't be used
+        private readonly Lease? _lease;
+        private readonly TimeSpan _leaseRetryInterval = TimeSpan.FromSeconds(5); // won't be used
+
+        private ICancelable? _delayedMemberRemovedCancelable;
 
         /// <summary>
         /// TBD
@@ -657,20 +659,20 @@ namespace Akka.Cluster.Tools.Singleton
             _singletonProps = singletonProps;
             _terminationMessage = terminationMessage;
             _settings = settings;
-            singletonLeaseName = $"{Context.System.Name}-singleton-{Self.Path}";
 
             if (settings.LeaseSettings != null)
             {
-                lease = LeaseProvider.Get(Context.System)
+                var singletonLeaseName = $"{Context.System.Name}-singleton-{Self.Path}";
+                _lease = LeaseProvider.Get(Context.System)
                     .GetLease(singletonLeaseName, settings.LeaseSettings.LeaseImplementation, _cluster.SelfAddress.HostPort());
-                leaseRetryInterval = settings.LeaseSettings.LeaseRetryInterval;
+                _leaseRetryInterval = settings.LeaseSettings.LeaseRetryInterval;
             }
 
             _removalMargin = (settings.RemovalMargin <= TimeSpan.Zero) ? _cluster.DowningProvider.DownRemovalMargin : settings.RemovalMargin;
 
             var n = (int)(_removalMargin.TotalMilliseconds / _settings.HandOverRetryInterval.TotalMilliseconds);
 
-            var minRetries = Context.System.Settings.Config.GetInt("akka.cluster.singleton.min-number-of-hand-over-retries", 0);
+            var minRetries = Context.System.Settings.Config.GetInt("akka.cluster.singleton.min-number-of-hand-over-retries", 15);
             if (minRetries < 1)
                 throw new ConfigurationException("min-number-of-hand-over-retries must be >= 1");
 
@@ -690,8 +692,7 @@ namespace Akka.Cluster.Tools.Singleton
             {
                 if (_cluster.IsTerminated || _cluster.SelfMember.Status == MemberStatus.Down)
                     return Task.FromResult(Done.Instance);
-                else
-                    return _memberExitingProgress.Task;
+                return _memberExitingProgress.Task;
             });
             _coordShutdown.AddTask(CoordinatedShutdown.PhaseClusterExiting, "singleton-exiting-2", () =>
             {
@@ -699,11 +700,9 @@ namespace Akka.Cluster.Tools.Singleton
                 {
                     return Task.FromResult(Done.Instance);
                 }
-                else
-                {
-                    var timeout = _coordShutdown.Timeout(CoordinatedShutdown.PhaseClusterExiting);
-                    return self.Ask(SelfExiting.Instance, timeout).ContinueWith(_ => Done.Instance);
-                }
+
+                var timeout = _coordShutdown.Timeout(CoordinatedShutdown.PhaseClusterExiting);
+                return self.Ask(SelfExiting.Instance, timeout).ContinueWith(_ => Done.Instance);
             });
         }
 
@@ -716,7 +715,7 @@ namespace Akka.Cluster.Tools.Singleton
                 throw new ActorInitializationException("Cluster node must not be terminated");
 
             // subscribe to cluster changes, re-subscribe when restart
-            _cluster.Subscribe(Self, ClusterEvent.InitialStateAsEvents, typeof(ClusterEvent.MemberRemoved), typeof(ClusterEvent.MemberDowned));
+            _cluster.Subscribe(Self, InitialStateAsEvents, typeof(MemberRemoved), typeof(MemberDowned));
 
             SetTimer(CleanupTimer, Cleanup.Instance, TimeSpan.FromMinutes(1.0), repeat: true);
 
@@ -729,6 +728,7 @@ namespace Akka.Cluster.Tools.Singleton
         /// <inheritdoc cref="ActorBase.PostStop"/>
         protected override void PostStop()
         {
+            _delayedMemberRemovedCancelable?.Cancel();
             CancelTimer(CleanupTimer);
             _cluster.Unsubscribe(Self);
             _memberExitingProgress.TrySetResult(Done.Instance);
@@ -766,33 +766,30 @@ namespace Akka.Cluster.Tools.Singleton
             _oldestChangedBuffer.Tell(OldestChangedBuffer.GetNext.Instance);
         }
 
-        private State<ClusterSingletonState, IClusterSingletonData> TryAcquireLease()
+        private State<ClusterSingletonState, IClusterSingletonData> TryAcquireLease(Lease lease)
         {
             var self = Self;
-            lease.Acquire(reason =>
+            lease.Acquire(leaseLostCallback: reason =>
             {
-                self.Tell(new LeaseLost(reason));
-            }).ContinueWith(r =>
-            {
-                if (r.IsFaulted || r.IsCanceled)
-                    return (object)new AcquireLeaseFailure(r.Exception);
-                return new AcquireLeaseResult(r.Result);
-            }).PipeTo(Self);
+                self.Tell(message: new LeaseLost(reason: reason));
+            }).PipeTo(
+                    recipient: Self, 
+                    success: result => new AcquireLeaseResult(holdingLease: result),
+                    failure: ex => new AcquireLeaseFailure(failure: ex));
 
-            return GoTo(ClusterSingletonState.AcquiringLease).Using(new AcquiringLeaseData(true, null));
+            return GoTo(nextStateName: ClusterSingletonState.AcquiringLease)
+                .Using(nextStateData: new AcquiringLeaseData(leaseRequestInProgress: true, singleton: null));
         }
 
         // Try and go to oldest, taking the lease if needed
         private State<ClusterSingletonState, IClusterSingletonData> TryGotoOldest()
         {
             // check if lease
-            if (lease == null)
+            if (_lease == null)
                 return GoToOldest();
-            else
-            {
-                Log.Info("Trying to acquire lease before starting singleton");
-                return TryAcquireLease();
-            }
+            
+            Log.Info("Trying to acquire lease before starting singleton");
+            return TryAcquireLease(_lease);
         }
 
         private State<ClusterSingletonState, IClusterSingletonData> GoToOldest()
@@ -803,58 +800,61 @@ namespace Akka.Cluster.Tools.Singleton
                 GoTo(ClusterSingletonState.Oldest).Using(new OldestData(singleton));
         }
 
-        private State<ClusterSingletonState, IClusterSingletonData> HandleOldestChanged(IActorRef singleton, UniqueAddress oldest)
+        private State<ClusterSingletonState, IClusterSingletonData> HandleOldestChanged(IActorRef? singleton, UniqueAddress oldest)
         {
             _oldestChangedReceived = true;
-            Log.Info("{0} observed OldestChanged: [{1} -> {2}]", StateName, _cluster.SelfAddress, oldest?.Address);
+            Log.Info("{0} observed OldestChanged: [{1} -> {2}]", StateName, _cluster.SelfAddress, oldest.Address);
             switch (oldest)
             {
-                case UniqueAddress a when a.Equals(_cluster.SelfUniqueAddress):
-                    // already oldest
-                    return Stay();
-                case UniqueAddress a when !_selfExited && _removed.ContainsKey(a):
-                    // The member removal was not completed and the old removed node is considered
-                    // oldest again. Safest is to terminate the singleton instance and goto Younger.
-                    // This node will become oldest again when the other is removed again.
-                    return GoToHandingOver(singleton, null);
-                case UniqueAddress a:
-                    // send TakeOver request in case the new oldest doesn't know previous oldest
-                    Peer(a.Address).Tell(TakeOverFromMe.Instance);
-                    SetTimer(TakeOverRetryTimer, new TakeOverRetry(1), _settings.HandOverRetryInterval, repeat: false);
-                    return GoTo(ClusterSingletonState.WasOldest)
-                        .Using(new WasOldestData(singleton, a));
                 case null:
                     // new oldest will initiate the hand-over
                     SetTimer(TakeOverRetryTimer, new TakeOverRetry(1), _settings.HandOverRetryInterval, repeat: false);
                     return GoTo(ClusterSingletonState.WasOldest)
                         .Using(new WasOldestData(singleton, newOldest: null));
+                
+                case var _ when oldest.Equals(_cluster.SelfUniqueAddress):
+                    // already oldest
+                    return Stay();
+                
+                case var _ when !_selfExited && _removed.ContainsKey(oldest):
+                    // The member removal was not completed and the old removed node is considered
+                    // oldest again. Safest is to terminate the singleton instance and goto Younger.
+                    // This node will become oldest again when the other is removed again.
+                    return GoToHandingOver(singleton, null);
+                
+                case var _:
+                    // send TakeOver request in case the new oldest doesn't know previous oldest
+                    Peer(oldest.Address).Tell(TakeOverFromMe.Instance);
+                    SetTimer(TakeOverRetryTimer, new TakeOverRetry(1), _settings.HandOverRetryInterval, repeat: false);
+                    return GoTo(ClusterSingletonState.WasOldest)
+                        .Using(new WasOldestData(singleton, oldest));
             }
         }
 
-        private State<ClusterSingletonState, IClusterSingletonData> HandleHandOverDone(IActorRef handOverTo)
+        private State<ClusterSingletonState, IClusterSingletonData> HandleHandOverDone(IActorRef? handOverTo)
         {
             var newOldest = handOverTo?.Path.Address;
             Log.Info("Singleton terminated, hand-over done [{0} -> {1}]", _cluster.SelfAddress, newOldest);
             handOverTo?.Tell(HandOverDone.Instance);
             _memberExitingProgress.TrySetResult(Done.Instance);
+            
             if (_removed.ContainsKey(_cluster.SelfUniqueAddress))
             {
                 Log.Info("Self removed, stopping ClusterSingletonManager");
                 return Stop();
             }
-            else if (handOverTo == null)
+
+            if (handOverTo is null)
             {
                 return GoTo(ClusterSingletonState.Younger).Using(new YoungerData(null));
             }
-            else
-            {
-                return GoTo(ClusterSingletonState.End).Using(EndData.Instance);
-            }
+            
+            return GoTo(ClusterSingletonState.End).Using(EndData.Instance);
         }
 
-        private State<ClusterSingletonState, IClusterSingletonData> GoToHandingOver(IActorRef singleton, IActorRef handOverTo)
+        private State<ClusterSingletonState, IClusterSingletonData> GoToHandingOver(IActorRef? singleton, IActorRef? handOverTo)
         {
-            if (singleton == null)
+            if (singleton is null)
             {
                 return HandleHandOverDone(handOverTo);
             }
@@ -878,27 +878,27 @@ namespace Akka.Cluster.Tools.Singleton
             {
                 switch (e.FsmEvent)
                 {
-                    case StartOldestChangedBuffer _:
-                        {
-                            _oldestChangedBuffer = Context.ActorOf(
-                                Actor.Props.Create(() => new OldestChangedBuffer(_settings.Role, _settings.ConsiderAppVersion))
+                    case StartOldestChangedBuffer:
+                        _oldestChangedBuffer = Context.ActorOf(
+                            Actor.Props.Create(() => new OldestChangedBuffer(_settings.Role, _settings.ConsiderAppVersion))
+                                .WithDeploy(Deploy.Local)
                                 .WithDispatcher(Context.Props.Dispatcher));
-                            GetNextOldestChanged();
-                            return Stay();
-                        }
+                        GetNextOldestChanged();
+                        return Stay();
+                    
                     case OldestChangedBuffer.InitialOldestState initialOldestState:
-                        {
-                            _oldestChangedReceived = true;
-                            if (initialOldestState.Oldest.Head() == _selfUniqueAddress && initialOldestState.SafeToBeOldest)
-                                // oldest immediately
-                                return TryGotoOldest();
-                            return initialOldestState.Oldest.Head() == _selfUniqueAddress
-                                ? GoTo(ClusterSingletonState.BecomingOldest).Using(new BecomingOldestData(initialOldestState.Oldest.FindAll(u => !u.Equals(_selfUniqueAddress))))
-                                : GoTo(ClusterSingletonState.Younger).Using(new YoungerData(initialOldestState.Oldest.FindAll(u => !u.Equals(_selfUniqueAddress))));
-                        }
+                        _oldestChangedReceived = true;
+                        if (initialOldestState.Oldest.Head() == _selfUniqueAddress && initialOldestState.SafeToBeOldest)
+                            // oldest immediately
+                            return TryGotoOldest();
+                        return initialOldestState.Oldest.Head() == _selfUniqueAddress
+                            ? GoTo(ClusterSingletonState.BecomingOldest).Using(new BecomingOldestData(initialOldestState.Oldest.FindAll(u => !u.Equals(_selfUniqueAddress))))
+                            : GoTo(ClusterSingletonState.Younger).Using(new YoungerData(initialOldestState.Oldest.FindAll(u => !u.Equals(_selfUniqueAddress))));
+                    
                     case HandOverToMe _:
                         // nothing to hand over in start
                         return Stay();
+                    
                     default:
                         return null;
                 }
@@ -906,197 +906,199 @@ namespace Akka.Cluster.Tools.Singleton
 
             When(ClusterSingletonState.Younger, e =>
             {
-                if (e.FsmEvent is OldestChangedBuffer.OldestChanged oldestChanged && e.StateData is YoungerData youngerData)
+                switch (e.FsmEvent)
                 {
-                    _oldestChangedReceived = true;
-                    if (oldestChanged.Oldest != null && oldestChanged.Oldest.Equals(_selfUniqueAddress))
+                    case OldestChangedBuffer.OldestChanged oldestChanged:
                     {
-                        Log.Info("Younger observed OldestChanged: [{0} -> myself]", youngerData.Oldest.Head()?.Address);
+                        if (e.StateData is not YoungerData youngerData)
+                            throw new InvalidOperationException($"Invalid StateData type. Expected [{nameof(YoungerData)}], was: [{e.StateData.GetType()}]");
+                        
+                        _oldestChangedReceived = true;
+                        if (oldestChanged.Oldest != null && oldestChanged.Oldest.Equals(_selfUniqueAddress))
+                        {
+                            Log.Info("Younger observed OldestChanged: [{0} -> myself]", youngerData.Oldest.Head()?.Address);
 
-                        if (youngerData.Oldest.All(m => _removed.ContainsKey(m)))
-                        {
-                            return TryGotoOldest();
-                        }
-                        else
-                        {
+                            if (youngerData.Oldest.All(m => _removed.ContainsKey(m)))
+                            {
+                                return TryGotoOldest();
+                            }
+
                             Peer(youngerData.Oldest.Head().Address).Tell(HandOverToMe.Instance);
                             return GoTo(ClusterSingletonState.BecomingOldest).Using(new BecomingOldestData(youngerData.Oldest));
                         }
-                    }
-                    else
-                    {
+
                         Log.Info("Younger observed OldestChanged: [{0} -> {1}]", youngerData.Oldest.Head()?.Address, oldestChanged.Oldest?.Address);
                         GetNextOldestChanged();
                         if (oldestChanged.Oldest != null && !youngerData.Oldest.Contains(oldestChanged.Oldest))
                             youngerData.Oldest.Insert(0, oldestChanged.Oldest);
                         return Stay().Using(new YoungerData(youngerData.Oldest));
                     }
-                }
-                else if (e.FsmEvent is MemberDowned memberDowned && memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
-                {
-                    Log.Info("Self downed, stopping ClusterSingletonManager");
-                    return Stop();
-                }
-                else if (e.FsmEvent is MemberRemoved memberRemoved)
-                {
-                    if (memberRemoved.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
-                    {
+                    
+                    case MemberDowned memberDowned when memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress):
+                        Log.Info("Self downed, stopping ClusterSingletonManager");
+                        return Stop();
+                    
+                    case MemberRemoved memberRemoved when memberRemoved.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress):
                         Log.Info("Self removed, stopping ClusterSingletonManager");
                         return Stop();
-                    }
-                    ScheduleDelayedMemberRemoved(memberRemoved.Member);
-                    return Stay();
-                }
-                else if (e.FsmEvent is DelayedMemberRemoved removed && e.StateData is YoungerData data)
-                {
-                    if (!_selfExited)
-                        Log.Info("Member removed [{0}]", removed.Member.Address);
-                    AddRemoved(removed.Member.UniqueAddress);
-                    // transition when OldestChanged
-                    return Stay().Using(new YoungerData(data.Oldest.FindAll(u => !u.Equals(removed.Member.UniqueAddress))));
-                }
-                else if (e.FsmEvent is HandOverToMe)
-                {
-                    var selfStatus = _cluster.SelfMember.Status;
-                    if (selfStatus is MemberStatus.Leaving or MemberStatus.Exiting)
+                    
+                    case MemberRemoved memberRemoved:
+                        ScheduleDelayedMemberRemoved(memberRemoved.Member);
+                        return Stay();
+                    
+                    case DelayedMemberRemoved removed when e.StateData is YoungerData data:
                     {
-                        Log.Info("Ignoring HandOverToMe in Younger from [{0}] because self is [{1}].",
-                            Sender.Path.Address, selfStatus);
+                        if (!_selfExited)
+                            Log.Info("Member removed [{0}]", removed.Member.Address);
+                        AddRemoved(removed.Member.UniqueAddress);
+                        // transition when OldestChanged
+                        return Stay().Using(new YoungerData(data.Oldest.FindAll(u => !u.Equals(removed.Member.UniqueAddress))));
                     }
-                    else
+                    
+                    case HandOverToMe:
                     {
-                        // this node was probably quickly restarted with same hostname:port,
-                        // confirm that the old singleton instance has been stopped
-                        Sender.Tell(HandOverDone.Instance);
+                        var selfStatus = _cluster.SelfMember.Status;
+                        if (selfStatus is MemberStatus.Leaving or MemberStatus.Exiting)
+                        {
+                            Log.Info("Ignoring HandOverToMe in Younger from [{0}] because self is [{1}].",
+                                Sender.Path.Address, selfStatus);
+                        }
+                        else
+                        {
+                            // this node was probably quickly restarted with same hostname:port,
+                            // confirm that the old singleton instance has been stopped
+                            Sender.Tell(HandOverDone.Instance);
+                        }
+                        return Stay();
                     }
-                    return Stay();
+                    
+                    default:
+                        return null;
                 }
-                return null;
             });
 
             When(ClusterSingletonState.BecomingOldest, e =>
             {
-                if (e.FsmEvent is HandOverInProgress)
+                switch (e.FsmEvent)
                 {
-                    // confirmation that the hand-over process has started
-                    Log.Info("Hand-over in progress at [{0}]", Sender.Path.Address);
-                    CancelTimer(HandOverRetryTimer);
-                    return Stay();
-                }
-                else if (e.FsmEvent is HandOverDone && e.StateData is BecomingOldestData b)
-                {
-                    var oldest = b.PreviousOldest.Head();
-                    if (oldest != null)
+                    case HandOverInProgress:
+                        // confirmation that the hand-over process has started
+                        Log.Info("Hand-over in progress at [{0}]", Sender.Path.Address);
+                        CancelTimer(HandOverRetryTimer);
+                        return Stay();
+                    
+                    case HandOverDone when e.StateData is BecomingOldestData b:
                     {
-                        if (Sender.Path.Address.Equals(oldest.Address))
+                        var oldest = b.PreviousOldest.Head();
+                        if (oldest != null)
+                        {
+                            if (Sender.Path.Address.Equals(oldest.Address))
+                            {
+                                return TryGotoOldest();
+                            }
+
+                            Log.Info("Ignoring HandOverDone in BecomingOldest from [{0}]. Expected previous oldest [{1}]",
+                                Sender.Path.Address, oldest.Address);
+                            return Stay();
+                        }
+
+                        Log.Info("Ignoring HandOverDone in BecomingOldest from [{0}].", Sender.Path.Address);
+                        return Stay();
+                    }
+                    
+                    case MemberDowned memberDowned when memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress):
+                        Log.Info("Self downed, stopping ClusterSingletonManager");
+                        return Stop();
+                    
+                    case MemberRemoved memberRemoved when memberRemoved.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress):
+                        Log.Info("Self removed, stopping ClusterSingletonManager");
+                        return Stop();
+                    
+                    case MemberRemoved memberRemoved:
+                        ScheduleDelayedMemberRemoved(memberRemoved.Member);
+                        return Stay();
+                    
+                    case DelayedMemberRemoved delayed when e.StateData is BecomingOldestData becoming:
+                    {
+                        if (!_selfExited)
+                            Log.Info("Member removed [{0}], previous oldest [{1}]", delayed.Member.Address, becoming.PreviousOldest);
+                        AddRemoved(delayed.Member.UniqueAddress);
+                        if (_cluster.IsTerminated)
+                        {
+                            // Don't act on DelayedMemberRemoved (starting singleton) if this node is shutting its self down,
+                            // just wait for self MemberRemoved
+                            return Stay();
+                        }
+
+                        if (becoming.PreviousOldest.Contains(delayed.Member.UniqueAddress) && becoming.PreviousOldest.All(a => _removed.ContainsKey(a)))
                         {
                             return TryGotoOldest();
                         }
-
-                        Log.Info("Ignoring HandOverDone in BecomingOldest from [{0}]. Expected previous oldest [{1}]",
-                            Sender.Path.Address, oldest.Address);
-                        return Stay();
-                    }
-
-                    Log.Info("Ignoring HandOverDone in BecomingOldest from [{0}].", Sender.Path.Address);
-                    return Stay();
-                }
-                else if (e.FsmEvent is MemberDowned memberDowned && memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
-                {
-                    Log.Info("Self downed, stopping ClusterSingletonManager");
-                    return Stop();
-                }
-                else if (e.FsmEvent is MemberRemoved memberRemoved)
-                {
-                    if (memberRemoved.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
-                    {
-                        Log.Info("Self removed, stopping ClusterSingletonManager");
-                        return Stop();
-                    }
-                    else
-                    {
-                        ScheduleDelayedMemberRemoved(memberRemoved.Member);
-                        return Stay();
-                    }
-                }
-                else if (e.FsmEvent is DelayedMemberRemoved delayed && e.StateData is BecomingOldestData becoming)
-                {
-                    if (!_selfExited)
-                        Log.Info("Member removed [{0}], previous oldest [{1}]", delayed.Member.Address, becoming.PreviousOldest);
-                    AddRemoved(delayed.Member.UniqueAddress);
-                    if (_cluster.IsTerminated)
-                    {
-                        // Don't act on DelayedMemberRemoved (starting singleton) if this node is shutting its self down,
-                        // just wait for self MemberRemoved
-                        return Stay();
-                    }
-                    else if (becoming.PreviousOldest.Contains(delayed.Member.UniqueAddress) && becoming.PreviousOldest.All(a => _removed.ContainsKey(a)))
-                    {
-                        return TryGotoOldest();
-                    }
-                    else
-                    {
                         return Stay().Using(new BecomingOldestData(becoming.PreviousOldest.FindAll(u => !u.Equals(delayed.Member.UniqueAddress))));
                     }
-                }
-                else if (e.FsmEvent is TakeOverFromMe && e.StateData is BecomingOldestData becomingOldestData)
-                {
-                    var senderAddress = Sender.Path.Address;
-                    // it would have been better to include the UniqueAddress in the TakeOverFromMe message,
-                    // but can't change due to backwards compatibility
-                    var senderUniqueAddress = _cluster.State.Members
-                        .Where(m => m.Address.Equals(senderAddress))
-                        .Select(m => m.UniqueAddress)
-                        .FirstOrDefault();
-
-                    switch (senderUniqueAddress)
+                    
+                    case TakeOverFromMe when e.StateData is BecomingOldestData becomingOldestData:
                     {
-                        case null:
-                            // from unknown node, ignore
-                            Log.Info("Ignoring TakeOver request from unknown node in BecomingOldest from [{0}]", senderAddress);
-                            return Stay();
-                        case UniqueAddress _:
+                        var senderAddress = Sender.Path.Address;
+                        // it would have been better to include the UniqueAddress in the TakeOverFromMe message,
+                        // but can't change due to backwards compatibility
+                        var senderUniqueAddress = _cluster.State.Members
+                            .Where(m => m.Address.Equals(senderAddress))
+                            .Select(m => m.UniqueAddress)
+                            .FirstOrDefault();
+
+                        switch (senderUniqueAddress)
+                        {
+                            case null:
+                                // from unknown node, ignore
+                                Log.Info("Ignoring TakeOver request from unknown node in BecomingOldest from [{0}]", senderAddress);
+                                return Stay();
+                            default:
                             {
                                 switch (becomingOldestData.PreviousOldest.Head())
                                 {
-                                    case UniqueAddress oldest:
+                                    case null:
+                                        Sender.Tell(HandOverToMe.Instance);
+                                        becomingOldestData.PreviousOldest.Insert(0, senderUniqueAddress);
+                                        return Stay().Using(new BecomingOldestData(becomingOldestData.PreviousOldest));
+                                    
+                                    case var oldest:
                                         if (oldest.Equals(senderUniqueAddress))
                                             Sender.Tell(HandOverToMe.Instance);
                                         else
                                             Log.Info("Ignoring TakeOver request in BecomingOldest from [{0}]. Expected previous oldest [{1}]",
                                                 Sender.Path.Address, oldest.Address);
                                         return Stay();
-                                    case null:
-                                        Sender.Tell(HandOverToMe.Instance);
-                                        becomingOldestData.PreviousOldest.Insert(0, senderUniqueAddress);
-                                        return Stay().Using(new BecomingOldestData(becomingOldestData.PreviousOldest));
                                 }
                             }
+                        }
                     }
-                }
-                else if (e.FsmEvent is HandOverRetry handOverRetry && e.StateData is BecomingOldestData becomingOldest)
-                {
-                    if (handOverRetry.Count <= _maxHandOverRetries)
+                        
+                    case HandOverRetry handOverRetry when e.StateData is BecomingOldestData becomingOldest:
                     {
-                        var oldest = becomingOldest.PreviousOldest.Head();
-                        Log.Info("Retry [{0}], sending HandOverToMe to [{1}]", handOverRetry.Count, oldest?.Address);
-                        if (oldest != null) Peer(oldest.Address).Tell(HandOverToMe.Instance);
-                        SetTimer(HandOverRetryTimer, new HandOverRetry(handOverRetry.Count + 1), _settings.HandOverRetryInterval);
-                        return Stay();
-                    }
-                    else if (becomingOldest.PreviousOldest != null && becomingOldest.PreviousOldest.All(m => _removed.ContainsKey(m)))
-                    {
-                        // can't send HandOverToMe, previousOldest unknown for new node (or restart)
-                        // previous oldest might be down or removed, so no TakeOverFromMe message is received
-                        Log.Info("Timeout in BecomingOldest. Previous oldest unknown, removed and no TakeOver request.");
-                        return TryGotoOldest();
-                    }
-                    else if (_cluster.IsTerminated)
-                    {
-                        return Stop();
-                    }
-                    else
-                    {
+                        if (handOverRetry.Count <= _maxHandOverRetries)
+                        {
+                            var oldest = becomingOldest.PreviousOldest.Head();
+                            Log.Info("Retry [{0}], sending HandOverToMe to [{1}]", handOverRetry.Count, oldest?.Address);
+                            if (oldest != null) 
+                                Peer(oldest.Address).Tell(HandOverToMe.Instance);
+                            SetTimer(HandOverRetryTimer, new HandOverRetry(handOverRetry.Count + 1), _settings.HandOverRetryInterval);
+                            return Stay();
+                        }
+
+                        if (becomingOldest.PreviousOldest.All(m => _removed.ContainsKey(m)))
+                        {
+                            // can't send HandOverToMe, previousOldest unknown for new node (or restart)
+                            // previous oldest might be down or removed, so no TakeOverFromMe message is received
+                            Log.Info("Timeout in BecomingOldest. Previous oldest unknown, removed and no TakeOver request.");
+                            return TryGotoOldest();
+                        }
+                        
+                        if (_cluster.IsTerminated)
+                        {
+                            return Stop();
+                        }
+                        
                         throw new ClusterSingletonManagerIsStuckException($"Becoming singleton oldest was stuck because previous oldest [{becomingOldest.PreviousOldest.Head()}] is unresponsive");
                     }
                 }
@@ -1106,238 +1108,212 @@ namespace Akka.Cluster.Tools.Singleton
 
             When(ClusterSingletonState.AcquiringLease, e =>
             {
-                if (e.FsmEvent is AcquireLeaseResult alr)
+                switch (e.FsmEvent)
                 {
-                    Log.Info("Acquire lease result {0}", alr.HoldingLease);
-                    if (alr.HoldingLease)
+                    case AcquireLeaseResult alr:
                     {
-                        return GoToOldest();
-                    }
-                    else
-                    {
-                        SetTimer(LeaseRetryTimer, LeaseRetry.Instance, leaseRetryInterval, repeat: false);
+                        Log.Info("Acquire lease result {0}", alr.HoldingLease);
+                        if (alr.HoldingLease)
+                        {
+                            return GoToOldest();
+                        }
+
+                        SetTimer(LeaseRetryTimer, LeaseRetry.Instance, _leaseRetryInterval, repeat: false);
                         return Stay().Using(new AcquiringLeaseData(false, null));
                     }
+                    
+                    case Terminated t when e.StateData is AcquiringLeaseData ald && t.ActorRef.Equals(ald.Singleton):
+                        Log.Info(
+                            "Singleton actor terminated. Trying to acquire lease again before re-creating.");
+                        // tryAcquireLease sets the state to None for singleton actor
+                        Debug.Assert(_lease != null, nameof(_lease) + " != null");
+                        return TryAcquireLease(_lease);
+                    
+                    case AcquireLeaseFailure alf:
+                        Log.Error(alf.Failure, "Failed to get lease (will be retried)");
+                        SetTimer(LeaseRetryTimer, LeaseRetry.Instance, _leaseRetryInterval, repeat: false);
+                        return Stay().Using(new AcquiringLeaseData(false, null));
+                    
+                    case LeaseRetry:
+                        // If lease was lost (so previous state was oldest) then we don't try and get the lease
+                        // until the old singleton instance has been terminated, so we know there isn't an
+                        // instance in this case
+                        Debug.Assert(_lease != null, nameof(_lease) + " != null");
+                        return TryAcquireLease(_lease);
+                    
+                    case OldestChangedBuffer.OldestChanged oldestChanged when e.StateData is AcquiringLeaseData ald2:
+                        return HandleOldestChanged(ald2.Singleton, oldestChanged.Oldest);
+                    
+                    case HandOverToMe when e.StateData is AcquiringLeaseData ald3:
+                        return GoToHandingOver(ald3.Singleton, Sender);
+                    
+                    case TakeOverFromMe:
+                        // already oldest, so confirm and continue like that
+                        Sender.Tell(HandOverToMe.Instance);
+                        return Stay();
+                    
+                    case SelfExiting:
+                        SelfMemberExited();
+                        // complete memberExitingProgress when handOverDone
+                        Sender.Tell(Done.Instance); // reply to ask
+                        return Stay();
+                    
+                    case MemberDowned md when md.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress):
+                        Log.Info("Self downed, stopping ClusterSingletonManager");
+                        return Stop();
+                    
+                    default:
+                        return null;
                 }
-
-                else if (e.FsmEvent is Terminated t && e.StateData is AcquiringLeaseData ald && t.ActorRef.Equals(ald.Singleton))
-                {
-                    Log.Info(
-                        "Singleton actor terminated. Trying to acquire lease again before re-creating.");
-                    // tryAcquireLease sets the state to None for singleton actor
-                    return TryAcquireLease();
-                }
-
-                else if (e.FsmEvent is AcquireLeaseFailure alf)
-                {
-                    Log.Error(alf.Failure, "Failed to get lease (will be retried)");
-                    SetTimer(LeaseRetryTimer, LeaseRetry.Instance, leaseRetryInterval, repeat: false);
-                    return Stay().Using(new AcquiringLeaseData(false, null));
-                }
-
-                else if (e.FsmEvent is LeaseRetry)
-                {
-                    // If lease was lost (so previous state was oldest) then we don't try and get the lease
-                    // until the old singleton instance has been terminated so we know there isn't an
-                    // instance in this case
-                    return TryAcquireLease();
-                }
-
-                if (e.FsmEvent is OldestChangedBuffer.OldestChanged oldestChanged && e.StateData is AcquiringLeaseData ald2)
-                {
-                    return HandleOldestChanged(ald2.Singleton, oldestChanged.Oldest);
-                }
-
-                if (e.FsmEvent is HandOverToMe && e.StateData is AcquiringLeaseData ald3)
-                {
-                    return GoToHandingOver(ald3.Singleton, Sender);
-                }
-
-                if (e.FsmEvent is TakeOverFromMe)
-                {
-                    // already oldest, so confirm and continue like that
-                    Sender.Tell(HandOverToMe.Instance);
-                    return Stay();
-                }
-
-                else if (e.FsmEvent is SelfExiting)
-                {
-                    SelfMemberExited();
-                    // complete memberExitingProgress when handOverDone
-                    Sender.Tell(Done.Instance); // reply to ask
-                    return Stay();
-                }
-
-                else if (e.FsmEvent is MemberDowned md && md.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
-                {
-                    Log.Info("Self downed, stopping ClusterSingletonManager");
-                    return Stop();
-                }
-
-                return null;
             });
 
             When(ClusterSingletonState.Oldest, e =>
             {
-                if (e.FsmEvent is OldestChangedBuffer.OldestChanged oldestChanged && e.StateData is OldestData oldestData)
+                switch (e.FsmEvent)
                 {
-                    return HandleOldestChanged(oldestData.Singleton, oldestChanged.Oldest);
-                }
-                else if (e.FsmEvent is HandOverToMe && e.StateData is OldestData oldest)
-                {
-                    return GoToHandingOver(oldest.Singleton, Sender);
-                }
-                else if (e.FsmEvent is TakeOverFromMe)
-                {
-                    // already oldest, so confirm and continue like that
-                    Sender.Tell(HandOverToMe.Instance);
-                    return Stay();
-                }
-                else if (e.FsmEvent is Terminated terminated && e.StateData is OldestData o && terminated.ActorRef.Equals(o.Singleton))
-                {
-                    Log.Info("Singleton actor [{0}] was terminated", o.Singleton.Path);
-                    return Stay().Using(new OldestData(null));
-                }
-                else if (e.FsmEvent is SelfExiting)
-                {
-                    SelfMemberExited();
-                    // complete _memberExitingProgress when HandOverDone
-                    Sender.Tell(Done.Instance); // reply to ask
-                    return Stay();
-                }
-                else if (e.FsmEvent is MemberDowned memberDowned && e.StateData is OldestData od && memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
-                {
-                    if (od.Singleton == null)
+                    case OldestChangedBuffer.OldestChanged oldestChanged when e.StateData is OldestData oldestData:
+                        return HandleOldestChanged(oldestData.Singleton, oldestChanged.Oldest);
+                    
+                    case HandOverToMe when e.StateData is OldestData oldest:
+                        return GoToHandingOver(oldest.Singleton, Sender);
+                    
+                    case TakeOverFromMe:
+                        // already oldest, so confirm and continue like that
+                        Sender.Tell(HandOverToMe.Instance);
+                        return Stay();
+                    
+                    case Terminated terminated when e.StateData is OldestData o && terminated.ActorRef.Equals(o.Singleton):
+                        Log.Info("Singleton actor [{0}] was terminated", o.Singleton.Path);
+                        return Stay().Using(new OldestData(null));
+                    
+                    case SelfExiting:
+                        SelfMemberExited();
+                        // complete _memberExitingProgress when HandOverDone
+                        Sender.Tell(Done.Instance); // reply to ask
+                        return Stay();
+                    
+                    case MemberDowned memberDowned when e.StateData is OldestData od && memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress):
                     {
-                        Log.Info("Self downed, stopping ClusterSingletonManager");
-                        return Stop();
-                    }
-                    else
-                    {
+                        if (od.Singleton == null)
+                        {
+                            Log.Info("Self downed, stopping ClusterSingletonManager");
+                            return Stop();
+                        }
+
                         Log.Info("Self downed, stopping");
                         return GoToStopping(od.Singleton);
                     }
-                }
-                else if (e.FsmEvent is LeaseLost ll && e.StateData is OldestData od2)
-                {
-                    Log.Warning(ll.Reason, "Lease has been lost. Terminating singleton and trying to re-acquire lease");
-                    if (od2.Singleton != null)
+                    
+                    case LeaseLost ll when e.StateData is OldestData od2:
                     {
-                        od2.Singleton.Tell(_terminationMessage);
-                        return GoTo(ClusterSingletonState.AcquiringLease).Using(new AcquiringLeaseData(false, od2.Singleton));
-                    }
-                    else
-                    {
-                        return TryAcquireLease();
-                    }
-                }
+                        Log.Warning(ll.Reason, "Lease has been lost. Terminating singleton and trying to re-acquire lease");
+                        if (od2.Singleton != null)
+                        {
+                            od2.Singleton.Tell(_terminationMessage);
+                            return GoTo(ClusterSingletonState.AcquiringLease).Using(new AcquiringLeaseData(false, od2.Singleton));
+                        }
 
-                return null;
+                        Debug.Assert(_lease != null, nameof(_lease) + " != null");
+                        return TryAcquireLease(_lease);
+                    }
+                    
+                    default:
+                        return null;
+                }
             });
 
             When(ClusterSingletonState.WasOldest, e =>
             {
-                if (e.FsmEvent is TakeOverRetry takeOverRetry && e.StateData is WasOldestData wasOldestData)
+                switch (e.FsmEvent)
                 {
-                    if ((_cluster.IsTerminated || _selfExited)
-                        && (wasOldestData.NewOldest == null || takeOverRetry.Count > _maxTakeOverRetries))
+                    case TakeOverRetry takeOverRetry when e.StateData is WasOldestData wasOldestData:
                     {
-                        return wasOldestData.Singleton != null ? GoToStopping(wasOldestData.Singleton) : Stop();
-                    }
-                    else if (takeOverRetry.Count <= _maxTakeOverRetries)
-                    {
-                        if (_maxTakeOverRetries - takeOverRetry.Count <= 3)
-                            Log.Info("Retry [{0}], sending TakeOverFromMe to [{1}]", takeOverRetry.Count, wasOldestData.NewOldest?.Address);
-                        else
-                            Log.Debug("Retry [{0}], sending TakeOverFromMe to [{1}]", takeOverRetry.Count, wasOldestData.NewOldest?.Address);
+                        if ((_cluster.IsTerminated || _selfExited)
+                            && (wasOldestData.NewOldest == null || takeOverRetry.Count > _maxTakeOverRetries))
+                        {
+                            return wasOldestData.Singleton != null ? GoToStopping(wasOldestData.Singleton) : Stop();
+                        }
 
-                        if (wasOldestData.NewOldest != null)
-                            Peer(wasOldestData.NewOldest.Address).Tell(TakeOverFromMe.Instance);
+                        if (takeOverRetry.Count <= _maxTakeOverRetries)
+                        {
+                            if (_maxTakeOverRetries - takeOverRetry.Count <= 3)
+                                Log.Info("Retry [{0}], sending TakeOverFromMe to [{1}]", takeOverRetry.Count, wasOldestData.NewOldest?.Address);
+                            else
+                                Log.Debug("Retry [{0}], sending TakeOverFromMe to [{1}]", takeOverRetry.Count, wasOldestData.NewOldest?.Address);
 
-                        SetTimer(TakeOverRetryTimer, new TakeOverRetry(takeOverRetry.Count + 1), _settings.HandOverRetryInterval, false);
-                        return Stay();
-                    }
-                    else
-                    {
+                            if (wasOldestData.NewOldest != null)
+                                Peer(wasOldestData.NewOldest.Address).Tell(TakeOverFromMe.Instance);
+
+                            SetTimer(TakeOverRetryTimer, new TakeOverRetry(takeOverRetry.Count + 1), _settings.HandOverRetryInterval, false);
+                            return Stay();
+                        }
                         throw new ClusterSingletonManagerIsStuckException($"Expected hand-over to [{wasOldestData.NewOldest}] never occurred");
                     }
-                }
-                else if (e.FsmEvent is HandOverToMe && e.StateData is WasOldestData w)
-                {
-                    return GoToHandingOver(w.Singleton, Sender);
-                }
-                else if (e.FsmEvent is MemberRemoved removed)
-                {
-                    if (removed.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress) && !_selfExited)
-                    {
+                    
+                    case HandOverToMe when e.StateData is WasOldestData w:
+                        return GoToHandingOver(w.Singleton, Sender);
+                    
+                    case MemberRemoved removed when removed.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress) && !_selfExited:
                         Log.Info("Self removed, stopping ClusterSingletonManager");
                         return Stop();
-                    }
-                    else if (e.StateData is WasOldestData data
-                            && data.NewOldest != null
-                            && !_selfExited
-                            && removed.Member.UniqueAddress.Equals(data.NewOldest))
-                    {
+                    
+                    case MemberRemoved removed when e.StateData is WasOldestData data
+                                                    && data.NewOldest != null
+                                                    && !_selfExited
+                                                    && removed.Member.UniqueAddress.Equals(data.NewOldest):
                         AddRemoved(removed.Member.UniqueAddress);
                         return GoToHandingOver(data.Singleton, null);
-                    }
-                }
-                else if (e.FsmEvent is Terminated t
-                    && e.StateData is WasOldestData oldestData
-                    && t.ActorRef.Equals(oldestData.Singleton))
-                {
-                    Log.Info("Singleton actor [{0}] was terminated", oldestData.Singleton.Path);
-                    return Stay().Using(new WasOldestData(null, oldestData.NewOldest));
-                }
-                else if (e.FsmEvent is SelfExiting)
-                {
-                    SelfMemberExited();
-                    // complete _memberExitingProgress when HandOverDone
-                    Sender.Tell(Done.Instance); // reply to ask
-                    return Stay();
-                }
-                else if (e.FsmEvent is MemberDowned memberDowned && e.StateData is WasOldestData od && memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
-                {
-                    if (od.Singleton == null)
+                    
+                    case Terminated t 
+                         when e.StateData is WasOldestData oldestData
+                              && t.ActorRef.Equals(oldestData.Singleton):
+                        Log.Info("Singleton actor [{0}] was terminated", oldestData.Singleton.Path);
+                        return Stay().Using(new WasOldestData(null, oldestData.NewOldest));
+                    
+                    case SelfExiting:
+                        SelfMemberExited();
+                        // complete _memberExitingProgress when HandOverDone
+                        Sender.Tell(Done.Instance); // reply to ask
+                        return Stay();
+                    
+                    case MemberDowned memberDowned when e.StateData is WasOldestData od && memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress):
                     {
-                        Log.Info("Self downed, stopping ClusterSingletonManager");
-                        return Stop();
-                    }
-                    else
-                    {
+                        if (od.Singleton == null)
+                        {
+                            Log.Info("Self downed, stopping ClusterSingletonManager");
+                            return Stop();
+                        }
+
                         Log.Info("Self downed, stopping");
                         return GoToStopping(od.Singleton);
                     }
+                    
+                    default:
+                        return null;
                 }
-
-                return null;
             });
 
             When(ClusterSingletonState.HandingOver, e =>
             {
-                if (e.FsmEvent is Terminated terminated
-                    && e.StateData is HandingOverData handingOverData
-                    && terminated.ActorRef.Equals(handingOverData.Singleton))
+                switch (e.FsmEvent)
                 {
-                    return HandleHandOverDone(handingOverData.HandOverTo);
+                    case Terminated terminated when e.StateData is HandingOverData handingOverData && terminated.ActorRef.Equals(handingOverData.Singleton):
+                        return HandleHandOverDone(handingOverData.HandOverTo);
+                    
+                    case HandOverToMe when e.StateData is HandingOverData d && d.HandOverTo is not null && d.HandOverTo.Equals(Sender):
+                        // retry
+                        Sender.Tell(HandOverInProgress.Instance);
+                        return Stay();
+                    
+                    case SelfExiting:
+                        SelfMemberExited();
+                        // complete _memberExitingProgress when HandOverDone
+                        Sender.Tell(Done.Instance);
+                        return Stay();
+                    
+                    default:
+                        return null;
                 }
-                else if (e.FsmEvent is HandOverToMe
-                    && e.StateData is HandingOverData d
-                    && d.HandOverTo.Equals(Sender))
-                {
-                    // retry
-                    Sender.Tell(HandOverInProgress.Instance);
-                    return Stay();
-                }
-                else if (e.FsmEvent is SelfExiting)
-                {
-                    SelfMemberExited();
-                    // complete _memberExitingProgress when HandOverDone
-                    Sender.Tell(Done.Instance);
-                    return Stay();
-                }
-
-                return null;
             });
 
             When(ClusterSingletonState.Stopping, e =>
@@ -1355,39 +1331,37 @@ namespace Akka.Cluster.Tools.Singleton
 
             When(ClusterSingletonState.End, e =>
             {
-                if (e.FsmEvent is MemberRemoved removed
-                    && removed.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
+                switch (e.FsmEvent)
                 {
-                    Log.Info("Self removed, stopping ClusterSingletonManager");
-                    return Stop();
+                    case MemberRemoved removed when removed.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress):
+                        Log.Info("Self removed, stopping ClusterSingletonManager");
+                        return Stop();
+                    
+                    case OldestChangedBuffer.OldestChanged or HandOverToMe:
+                        // not interested anymore - waiting for removal
+                        return Stay();
+                    
+                    default:
+                        return null;
                 }
-                if (e.FsmEvent is OldestChangedBuffer.OldestChanged or HandOverToMe)
-                {
-                    // not interested anymore - waiting for removal
-                    return Stay();
-                }
-
-                return null;
             });
 
             WhenUnhandled(e =>
             {
-                if (e.FsmEvent is SelfExiting)
+                switch (e.FsmEvent)
                 {
-                    SelfMemberExited();
-                    // complete _memberExitingProgress when HandOverDone
-                    _memberExitingProgress.TrySetResult(Done.Instance);
-                    Sender.Tell(Done.Instance); // reply to ask
-                    return Stay();
-                }
-                if (e.FsmEvent is MemberRemoved removed)
-                {
-                    if (removed.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress) && !_selfExited)
-                    {
+                    case SelfExiting:
+                        SelfMemberExited();
+                        // complete _memberExitingProgress when HandOverDone
+                        _memberExitingProgress.TrySetResult(Done.Instance);
+                        Sender.Tell(Done.Instance); // reply to ask
+                        return Stay();
+                    
+                    case MemberRemoved removed when removed.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress) && !_selfExited:
                         Log.Info("Self removed, stopping ClusterSingletonManager");
                         return Stop();
-                    }
-                    else
+                    
+                    case MemberRemoved removed:
                     {
                         if (!_selfExited)
                             Log.Info("Member removed [{0}]", removed.Member.Address);
@@ -1395,89 +1369,102 @@ namespace Akka.Cluster.Tools.Singleton
                         AddRemoved(removed.Member.UniqueAddress);
                         return Stay();
                     }
-                }
-                if (e.FsmEvent is DelayedMemberRemoved delayedMemberRemoved)
-                {
-                    if (!_selfExited)
-                        Log.Info("Member removed [{0}]", delayedMemberRemoved.Member.Address);
-
-                    AddRemoved(delayedMemberRemoved.Member.UniqueAddress);
-                    return Stay();
-                }
-                if (e.FsmEvent is TakeOverFromMe)
-                {
-                    Log.Debug("Ignoring TakeOver request in [{0}] from [{1}].", StateName, Sender.Path.Address);
-                    return Stay();
-                }
-                if (e.FsmEvent is Cleanup)
-                {
-                    CleanupOverdueNotMemberAnyMore();
-                    return Stay();
-                }
-                if (e.FsmEvent is MemberDowned memberDowned)
-                {
-                    if (memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
-                        Log.Info("Self downed, waiting for removal");
-                    return Stay();
-                }
-
-                if (e.FsmEvent is ReleaseLeaseFailure rlf)
-                {
-                    Log.Error(
-                        rlf.Failure,
-                        "Failed to release lease. Singleton may not be able to run on another node until lease timeout occurs");
-                    return Stay();
-                }
-
-                if (e.FsmEvent is ReleaseLeaseResult rlr)
-                {
-                    if (rlr.Released)
+                    
+                    case DelayedMemberRemoved delayedMemberRemoved:
                     {
-                        Log.Info("Lease released");
+                        if (!_selfExited)
+                            Log.Info("Member removed [{0}]", delayedMemberRemoved.Member.Address);
+
+                        AddRemoved(delayedMemberRemoved.Member.UniqueAddress);
+                        return Stay();
                     }
-                    else
+                    
+                    case TakeOverFromMe:
+                        Log.Debug("Ignoring TakeOver request in [{0}] from [{1}].", StateName, Sender.Path.Address);
+                        return Stay();
+                    
+                    case Cleanup:
+                        CleanupOverdueNotMemberAnyMore();
+                        return Stay();
+                    
+                    case MemberDowned memberDowned:
                     {
-                        // TODO we could retry
+                        if (memberDowned.Member.UniqueAddress.Equals(_cluster.SelfUniqueAddress))
+                            Log.Info("Self downed, waiting for removal");
+                        return Stay();
+                    }
+                    
+                    case ReleaseLeaseFailure rlf:
                         Log.Error(
+                            rlf.Failure,
                             "Failed to release lease. Singleton may not be able to run on another node until lease timeout occurs");
+                        return Stay();
+                    
+                    case ReleaseLeaseResult rlr:
+                    {
+                        if (rlr.Released)
+                        {
+                            Log.Info("Lease released");
+                        }
+                        else
+                        {
+                            // TODO we could retry
+                            Log.Error(
+                                "Failed to release lease. Singleton may not be able to run on another node until lease timeout occurs");
+                        }
+                        return Stay();
                     }
-                    return Stay();
+                    
+                    default:
+                        return null;
                 }
-                return null;
             });
 
             OnTransition((from, to) =>
             {
                 Log.Info("ClusterSingletonManager state change [{0} -> {1}] {2}", from, to, StateData.ToString());
 
-                if (to == ClusterSingletonState.BecomingOldest) SetTimer(HandOverRetryTimer, new HandOverRetry(1), _settings.HandOverRetryInterval);
-                if (from == ClusterSingletonState.BecomingOldest) CancelTimer(HandOverRetryTimer);
-                if (from == ClusterSingletonState.WasOldest) CancelTimer(TakeOverRetryTimer);
-
-                if (from == ClusterSingletonState.AcquiringLease && to != ClusterSingletonState.Oldest)
+                if (to == ClusterSingletonState.BecomingOldest) 
+                    SetTimer(HandOverRetryTimer, new HandOverRetry(1), _settings.HandOverRetryInterval);
+                
+                switch (from)
                 {
-                    if (StateData is AcquiringLeaseData ald && ald.LeaseRequestInProgress)
+                    case ClusterSingletonState.BecomingOldest:
+                        CancelTimer(HandOverRetryTimer);
+                        break;
+                    
+                    case ClusterSingletonState.WasOldest:
+                        CancelTimer(TakeOverRetryTimer);
+                        break;
+                    
+                    case ClusterSingletonState.AcquiringLease when to != ClusterSingletonState.Oldest:
                     {
-                        Log.Info("Releasing lease as leaving AcquiringLease going to [{0}]", to);
-                        if (lease != null)
+                        if (StateData is AcquiringLeaseData { LeaseRequestInProgress: true })
                         {
-                            lease.Release().ContinueWith(r =>
+                            Log.Info("Releasing lease as leaving AcquiringLease going to [{0}]", to);
+                            if (_lease != null)
                             {
-                                if (r.IsCanceled || r.IsFaulted)
-                                    return (object)new ReleaseLeaseFailure(r.Exception);
-                                return new ReleaseLeaseResult(r.Result);
-                            }).PipeTo(Self);
+                                _lease.Release().ContinueWith(r =>
+                                {
+                                    if (r.IsCanceled || r.IsFaulted)
+                                        return (object)new ReleaseLeaseFailure(r.Exception!);
+                                    return new ReleaseLeaseResult(r.Result);
+                                }).PipeTo(Self);
+                            }
                         }
+
+                        break;
                     }
+                    
+                    case ClusterSingletonState.Oldest when _lease != null:
+                        Log.Info("Releasing lease as leaving Oldest");
+                        _lease.Release().ContinueWith(r => new ReleaseLeaseResult(r.Result)).PipeTo(Self);
+                        break;
                 }
 
-                if (from == ClusterSingletonState.Oldest && lease != null)
-                {
-                    Log.Info("Releasing lease as leaving Oldest");
-                    lease.Release().ContinueWith(r => new ReleaseLeaseResult(r.Result)).PipeTo(Self);
-                }
-
-                if (to is ClusterSingletonState.Younger or ClusterSingletonState.Oldest) GetNextOldestChanged();
+                if (to is ClusterSingletonState.Younger or ClusterSingletonState.Oldest) 
+                    GetNextOldestChanged();
+                
                 if (to is ClusterSingletonState.Younger or ClusterSingletonState.End)
                 {
                     if (_removed.ContainsKey(_cluster.SelfUniqueAddress))
@@ -1501,8 +1488,13 @@ namespace Akka.Cluster.Tools.Singleton
         {
             if (_removalMargin > TimeSpan.Zero)
             {
+                _delayedMemberRemovedCancelable?.Cancel();
+                _delayedMemberRemovedCancelable = new Cancelable(Context.System.Scheduler);
+                
                 Log.Debug("Schedule DelayedMemberRemoved for {0}", member.Address);
-                Context.System.Scheduler.ScheduleTellOnce(_removalMargin, Self, new DelayedMemberRemoved(member), Self);
+#pragma warning disable AK1004
+                Context.System.Scheduler.ScheduleTellOnce(_removalMargin, Self, new DelayedMemberRemoved(member), Self, _delayedMemberRemovedCancelable);
+#pragma warning restore AK1004
             }
             else Self.Tell(new DelayedMemberRemoved(member));
         }
