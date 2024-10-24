@@ -4,6 +4,9 @@ title: Split Brain Resolver
 ---
 # Split Brain Resolver
 
+> [!NOTE]
+> As of Akka.NET v1.5.2, the split brain resolver is enabled by default using the `keep-majority` strategy.
+
 When working with an Akka.NET cluster, you must consider how to handle [network partitions](https://en.wikipedia.org/wiki/Network_partition) (a.k.a. split brain scenarios) and machine crashes (including .NET CLR/Core and hardware failures). This is crucial for correct behavior of your cluster, especially if you use Cluster Singleton or Cluster Sharding.
 
 ## The Problem
@@ -23,6 +26,29 @@ In the past the only available opt-in strategy was an auto-down, in which each n
 
 Split brain resolver feature brings ability to apply different strategies for managing node lifecycle in face of network issues and machine crashes. It works as a custom downing provider. Therefore in order to use it, **all of your Akka.NET cluster nodes must define it with the same configuration**. Here's how minimal configuration looks like:
 
+# [Akka.Hosting](#tab/hosting)
+
+```csharp
+using var host = Host.CreateDefaultBuilder(args)
+  .ConfigureServices((context, services) =>
+  {
+    services.AddAkka("myActorSystem", (builder, provider) =>
+    {
+      builder
+        .WithRemoting("<akka-node-host-name-or-ip>", 4053)
+        .WithClustering(new ClusterOptions
+        {
+          // Replace KeepMajorityOption with your chosen strategy
+          SplitBrainResolver = new KeepMajorityOption(),
+        });
+    });
+  }).Build();
+
+await host.RunAsync();
+```
+
+# [HOCON](#tab/hocon)
+
 ```hocon
 akka.cluster {
   downing-provider-class = "Akka.Cluster.SBR.SplitBrainResolverProvider, Akka.Cluster"
@@ -32,7 +58,10 @@ akka.cluster {
 }
 ```
 
-Keep in mind that split brain resolver will NOT work when `akka.cluster.auto-down-unreachable-after` is used.
+---
+
+> [!IMPORTANT]
+> Keep in mind that split brain resolver will NOT work when `akka.cluster.auto-down-unreachable-after` is used.
 
 ## Split Brain Resolution Strategies
 
@@ -43,11 +72,33 @@ Beginning in Akka.NET v1.4.16, the Akka.NET project has ported the original spli
 
 ### Disabling the Default Downing Provider
 
-To disable the default Akka.Cluster downing provider, simply configure the following in your HOCON:
+To disable the default Akka.Cluster downing provider, simply configure the following:
+
+# [Akka.Hosting](#tab/hosting)
+
+```csharp
+using var host = Host.CreateDefaultBuilder(args)
+  .ConfigureServices((context, services) =>
+  {
+    services.AddAkka("myActorSystem", (builder, provider) =>
+    {
+      builder
+        .WithRemoting("<akka-node-host-name-or-ip>", 4053)
+        .WithClustering()
+        .AddHocon("akka.cluster.downing-provider-class = \"\"", HoconAddMode.Prepend);
+    });
+  }).Build();
+
+await host.RunAsync();
+```
+
+# [HOCON](#tab/hocon)
 
 ```hocon
 akka.cluster.downing-provider-class = ""
 ```
+
+---
 
 This will disable the split brain resolver / downing provider functionality altogether in Akka.NET. This was the default behavior for Akka.Cluster as of Akka.NET v1.5.1 and earlier.
 
@@ -265,18 +316,100 @@ You can configure a minimum required amount of reachable nodes to maintain opera
 
 The `lease-majority` downing provider strategy keeps all of the nodes in the cluster who are able to successfully acquire an [`Akka.Coordination.Lease`](xref:Akka.Coordination.Lease) - and the implementation of which must be specified by the user via configuration:
 
+# [Akka.Coordination.KubernetesApi](#tab/kubernetes)
+
+To enable Kubernetes lease inside SBR, you need to pass a `LeaseMajorityOption` instance into the `ClusterOptions.SplitBrainResolver` property of the `WithClustering()` extension method and specify that you're using the Kubernetes lease implementation.
+
+```csharp
+var leaseOption = new KubernetesLeaseOption(); // Setup any custom k8s settings here
+
+using var host = Host.CreateDefaultBuilder(args)
+  .ConfigureServices((context, services) =>
+  {
+    services.AddAkka("myActorSystem", (builder, provider) =>
+    {
+      builder
+        .WithRemoting("<akka-node-host-name-or-ip>", 4053)
+        .WithClustering(new ClusterOptions
+        {
+          SplitBrainResolver = new LeaseMajorityOption
+          {
+            LeaseImplementation = leaseOption,
+            LeaseName = "myActorSystem-akka-sbr"
+          }
+        })
+        .WithKubernetesLease(leaseOption);
+    });
+  }).Build();
+
+await host.RunAsync();
+```
+
+# [Akka.Coordination.Azure](#tab/azure)
+
+To enable Azure lease inside SBR, you need to pass a `LeaseMajorityOption` instance into the `ClusterOptions.SplitBrainResolver` property of the `WithClustering()` extension method and specify that you're using the Azure lease implementation.
+
+```csharp
+var leaseOption = new AzureLeaseOption
+{
+  ConnectionString = "<your-Azure-Blob-Storage-connection-string>",
+  ContainerName = "<your-Azure-Blob-storage-container-name>",
+  // Setup any custom azure settings here
+};
+
+using var host = Host.CreateDefaultBuilder(args)
+  .ConfigureServices((context, services) =>
+  {
+    services.AddAkka("myActorSystem", (builder, provider) =>
+    {
+      builder
+        .WithRemoting("<akka-node-host-name-or-ip>", 4053)
+        .WithClustering(new ClusterOptions
+        {
+          SplitBrainResolver = new LeaseMajorityOption
+          {
+            LeaseImplementation = leaseOption,
+            LeaseName = "myActorSystem-akka-sbr"
+          }
+        })
+        .WithKubernetesLease(leaseOption);
+    });
+  }).Build();
+
+await host.RunAsync();
+```
+
+# [HOCON](#tab/hocon)
+
+Here, we're setting Akka.Cluster split brain resolver to use a kubernetes based lease implementation.
+
 ```hocon
-akka.cluster.split-brain-resolver.lease-majority {
-  lease-implementation = ""
+akka.cluster {
+  downing-provider-class = "Akka.Cluster.SBR.SplitBrainResolverProvider, Akka.Cluster"
+  split-brain-resolver {
 
-  # This delay is used on the minority side before trying to acquire the lease,
-  # as an best effort to try to keep the majority side.
-  acquire-lease-delay-for-minority = 2s
+    active-strategy = lease-majority
 
-  # If the 'role' is defined the majority/minority is based only on members with that 'role'.
-  role = ""
+    lease-majority {
+      # The full HOCON path that holds the lease configuration
+      lease-implementation = akka.coordination.lease.kubernetes
+
+      # The recommended format for the lease name is "<service-name>-akka-sbr".
+      # When lease-name is not defined, the name will be set to "<actor-system-name>-akka-sbr"
+      lease-name = myActorSystem-akka-sbr
+
+      # This delay is used on the minority side before trying to acquire the lease,
+      # as an best effort to try to keep the majority side.
+      acquire-lease-delay-for-minority = 2s
+
+      # If the 'role' is defined the majority/minority is based only on members with that 'role'.
+      role = ""
+    }
+  }
 }
 ```
+
+---
 
 A `Lease` is a type of distributed lock implementation. In the context of SBR, the leader who acquires the Lease gets to make downing decisions for the entire cluster. Only one SBR instance can acquire the lease to make the decision to remain up. The other side will not be able to acquire the lease and will therefore down itself.
 
