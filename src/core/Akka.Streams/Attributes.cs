@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Akka.Event;
@@ -276,6 +277,7 @@ namespace Akka.Streams
         public static readonly Attributes None = new();
 
         private readonly IAttribute[] _attributes;
+        private readonly ImmutableDictionary<Type, IMandatoryAttribute> _mandatoryAttributes;
 
         /// <summary>
         /// TBD
@@ -283,9 +285,43 @@ namespace Akka.Streams
         /// <param name="attributes">TBD</param>
         public Attributes(params IAttribute[] attributes)
         {
-            _attributes = attributes ?? Array.Empty<IAttribute>();
+            if (attributes is null || attributes.Length == 0)
+            {
+                _attributes = Array.Empty<IAttribute>();
+                _mandatoryAttributes = ImmutableDictionary<Type, IMandatoryAttribute>.Empty;
+                return;
+            }
+            
+            var newAttributes = new List<IAttribute>();
+            var newMandatoryAttributes = new Dictionary<Type, IMandatoryAttribute>();
+            foreach (var attribute in attributes)
+            {
+                switch (attribute)
+                {
+                    case IMandatoryAttribute mandatory:
+                        newMandatoryAttributes[mandatory.GetType()] = mandatory;
+                        break;
+                    default:
+                        newAttributes.Add(attribute);
+                        break;
+                }
+            }
+
+            _attributes = newAttributes.ToArray();
+            _mandatoryAttributes = newMandatoryAttributes.ToImmutableDictionary();
         }
 
+        /// <summary>
+        /// TBD
+        /// </summary>
+        /// <param name="attributes">TBD</param>
+        /// <param name="mandatoryAttributes">TBD</param>
+        public Attributes(IAttribute[] attributes, ImmutableDictionary<Type, IMandatoryAttribute> mandatoryAttributes)
+        {
+            _attributes = attributes;
+            _mandatoryAttributes = mandatoryAttributes;
+        }
+        
         /// <summary>
         /// The list is ordered with the most specific attribute first, least specific last.
         /// 
@@ -364,9 +400,9 @@ namespace Akka.Streams
         /// <returns></returns>
         public TAttr GetMandatoryAttribute<TAttr>() where TAttr : class, IMandatoryAttribute
         {
-            if (!(_attributes.First(attr => attr is TAttr) is TAttr result))
+            if(!_mandatoryAttributes.TryGetValue(typeof(TAttr), out var mandatoryAttribute))
                 throw new IllegalStateException($"Mandatory attribute [{typeof(TAttr)}] not found.");
-            return result;
+            return (TAttr) mandatoryAttribute;
         }
 
         /// <summary>
@@ -376,11 +412,11 @@ namespace Akka.Streams
         /// <returns>TBD</returns>
         public Attributes And(Attributes other)
         {
-            if (_attributes.Length == 0)
+            if (_attributes.Length == 0 && _mandatoryAttributes.IsEmpty)
                 return other;
-            if (!other.AttributeList.Any())
+            if (!other.AttributeList.Any() && other._mandatoryAttributes.IsEmpty)
                 return this;
-            return new Attributes(_attributes.Concat(other.AttributeList).ToArray());
+            return new Attributes(_attributes.Concat(other.AttributeList).ToArray(), ConcatMandatory(other._mandatoryAttributes));
         }
 
         /// <summary>
@@ -388,7 +424,27 @@ namespace Akka.Streams
         /// </summary>
         /// <param name="other">TBD</param>
         /// <returns>TBD</returns>
-        public Attributes And(IAttribute other) => new(_attributes.Concat(new[] { other }).ToArray());
+        public Attributes And(IAttribute other)
+        {
+            return other switch
+            {
+                IMandatoryAttribute mandatory => new Attributes(_attributes, ConcatMandatory(mandatory)),
+                _ => new Attributes(_attributes.Concat(new[] { other }).ToArray(), _mandatoryAttributes)
+            };
+        }
+
+        private ImmutableDictionary<Type, IMandatoryAttribute> ConcatMandatory(ImmutableDictionary<Type, IMandatoryAttribute> other)
+        {
+            var builder = ImmutableDictionary.CreateBuilder<Type, IMandatoryAttribute>();
+            builder.AddRange(_mandatoryAttributes);
+            builder.AddRange(other);
+            return builder.ToImmutable();
+        }
+
+        private ImmutableDictionary<Type, IMandatoryAttribute> ConcatMandatory(IMandatoryAttribute other)
+        {
+            return _mandatoryAttributes.SetItem(other.GetType(), other);
+        }
 
         /// <summary>
         /// Extracts Name attributes and concatenates them.
@@ -448,7 +504,9 @@ namespace Akka.Streams
         public static Attributes CreateName(string name)
             => string.IsNullOrEmpty(name) ?
                 None :
-                new Attributes(new Name(Uri.EscapeUriString(name)));
+                new Attributes(
+                    new[] { new Name(Uri.EscapeUriString(name)) }, 
+                    ImmutableDictionary<Type, IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Each asynchronous piece of a materialized stream topology is executed by one Actor
@@ -458,13 +516,17 @@ namespace Akka.Streams
         /// <param name="initial">TBD</param>
         /// <param name="max">TBD</param>
         /// <returns>TBD</returns>
-        public static Attributes CreateInputBuffer(int initial, int max) => new(new InputBuffer(initial, max));
+        public static Attributes CreateInputBuffer(int initial, int max) => new(
+            new[] { new InputBuffer(initial, max) }, 
+            ImmutableDictionary<Type, IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// TBD
         /// </summary>
         /// <returns>TBD</returns>
-        public static Attributes CreateAsyncBoundary() => new(AsyncBoundary.Instance);
+        public static Attributes CreateAsyncBoundary() => new(
+            new[] { AsyncBoundary.Instance },
+            ImmutableDictionary<Type, IMandatoryAttribute>.Empty);
 
         ///<summary>
         /// Configures <see cref="FlowOperations.Log{TIn,TOut,TMat}"/> stage log-levels to be used when logging.
@@ -479,7 +541,9 @@ namespace Akka.Streams
         /// <returns>TBD</returns>
         public static Attributes CreateLogLevels(LogLevel onElement = LogLevel.DebugLevel,
             LogLevel onFinish = LogLevel.DebugLevel, LogLevel onError = LogLevel.ErrorLevel)
-            => new(new LogLevels(onElement, onFinish, onError));
+            => new(
+                new[] { new LogLevels(onElement, onFinish, onError)}, 
+                ImmutableDictionary<Type, IMandatoryAttribute>.Empty);
 
         // TODO: different than scala code, investigate later.
         /// <summary>
@@ -744,7 +808,9 @@ namespace Akka.Streams
         /// </summary>
         /// <param name="dispatcherName">TBD</param>
         /// <returns>TBD</returns>
-        public static Attributes CreateDispatcher(string dispatcherName) => new(new Dispatcher(dispatcherName));
+        public static Attributes CreateDispatcher(string dispatcherName) => new(
+            new[] { new Dispatcher(dispatcherName) }, 
+            ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Decides how exceptions from user are to be handled
@@ -756,7 +822,9 @@ namespace Akka.Streams
         /// <param name="strategy">TBD</param>
         /// <returns>TBD</returns>
         public static Attributes CreateSupervisionStrategy(Decider strategy)
-            => new(new SupervisionStrategy(strategy));
+            => new(
+                new[] { new SupervisionStrategy(strategy) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Enables additional low level troubleshooting logging at DEBUG log level
@@ -764,7 +832,9 @@ namespace Akka.Streams
         /// <param name="enabled"></param>
         /// <returns></returns>
         public static Attributes CreateDebugLogging(bool enabled)
-            => new(new DebugLogging(enabled));
+            => new(
+                new[] { new DebugLogging(enabled) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Defines a timeout for stream subscription and what action to take when that hits.
@@ -775,7 +845,9 @@ namespace Akka.Streams
         public static Attributes CreateStreamSubscriptionTimeout(
             TimeSpan timeout,
             StreamSubscriptionTimeoutTerminationMode mode)
-            => new(new StreamSubscriptionTimeout(timeout, mode));
+            => new(
+                new[] { new StreamSubscriptionTimeout(timeout, mode) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Maximum number of elements emitted in batch if downstream signals large demand.
@@ -783,7 +855,9 @@ namespace Akka.Streams
         /// <param name="limit"></param>
         /// <returns></returns>
         public static Attributes CreateOutputBurstLimit(int limit)
-            => new(new OutputBurstLimit(limit));
+            => new(
+                new[] { new OutputBurstLimit(limit) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Test utility: fuzzing mode means that GraphStage events are not processed
@@ -792,7 +866,9 @@ namespace Akka.Streams
         /// <param name="enabled"></param>
         /// <returns></returns>
         public static Attributes CreateFuzzingMode(bool enabled)
-            => new(new FuzzingMode(enabled));
+            => new(
+                new[] { new FuzzingMode(enabled) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Configure the maximum buffer size for which a FixedSizeBuffer will be preallocated.
@@ -802,7 +878,9 @@ namespace Akka.Streams
         /// <param name="size"></param>
         /// <returns></returns>
         public static Attributes CreateMaxFixedBufferSize(int size)
-            => new(new MaxFixedBufferSize(size));
+            => new(
+                new[] { new MaxFixedBufferSize(size) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Limit for number of messages that can be processed synchronously in stream to substream communication
@@ -810,7 +888,9 @@ namespace Akka.Streams
         /// <param name="limit"></param>
         /// <returns></returns>
         public static Attributes CreateSyncProcessingLimit(int limit)
-            => new(new SyncProcessingLimit(limit));
+            => new(
+                new[] { new SyncProcessingLimit(limit) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
     }
 
     /// <summary>
@@ -937,25 +1017,33 @@ namespace Akka.Streams
         /// <summary>
         /// Specifies the subscription timeout within which the remote side MUST subscribe to the handed out stream reference.
         /// </summary>
-        public static Attributes CreateSubscriptionTimeout(TimeSpan timeout) => new(new SubscriptionTimeout(timeout));
+        public static Attributes CreateSubscriptionTimeout(TimeSpan timeout) => new(
+            new[] { new SubscriptionTimeout(timeout) }, 
+            ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// Specifies the size of the buffer on the receiving side that is eagerly filled even without demand.
         /// </summary>
         public static Attributes CreateBufferCapacity(int capacity)
-            => new(new BufferCapacity(capacity));
+            => new(
+                new[] { new BufferCapacity(capacity) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
 
         /// <summary>
         /// If no new elements arrive within this timeout, demand is redelivered.
         /// </summary>
         public static Attributes CreateDemandRedeliveryInterval(TimeSpan timeout)
-            => new(new DemandRedeliveryInterval(timeout));
+            => new(
+                new[] { new DemandRedeliveryInterval(timeout)} , 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
 
         /// <summary>
         /// The time between the Terminated signal being received and when the local SourceRef determines to fail itself
         /// </summary>
         public static Attributes CreateFinalTerminationSignalDeadline(TimeSpan timeout)
-            => new(new FinalTerminationSignalDeadline(timeout));
+            => new(
+                new[] { new FinalTerminationSignalDeadline(timeout) }, 
+                ImmutableDictionary<Type, Attributes.IMandatoryAttribute>.Empty);
     }
 }
