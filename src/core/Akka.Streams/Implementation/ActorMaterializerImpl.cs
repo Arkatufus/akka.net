@@ -278,7 +278,10 @@ namespace Akka.Streams.Implementation
 
         private string CreateFlowName() => _flowNames.Next();
 
-        private Attributes DefaultInitialAttributes => _settings.ToAttributes();
+        private Attributes DefaultInitialAttributes => 
+            Attributes.CreateInputBuffer(_settings.InitialInputBufferSize, _settings.MaxInputBufferSize)
+                .And(ActorAttributes.CreateDispatcher(_settings.Dispatcher))
+                .And(ActorAttributes.CreateSupervisionStrategy(_settings.SupervisionDecider));
 
         /// <summary>
         /// TBD

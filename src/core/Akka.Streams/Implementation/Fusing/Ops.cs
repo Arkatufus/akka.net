@@ -3302,9 +3302,7 @@ namespace Akka.Streams.Implementation.Fusing
 
             public Logic(Attributes inheritedAttributes, Delay<T> stage) : base(stage.Shape)
             {
-                var inputBuffer = inheritedAttributes.GetAttribute<Attributes.InputBuffer>(null);
-                if (inputBuffer == null)
-                    throw new IllegalStateException($"Couldn't find InputBuffer Attribute for {this}");
+                var inputBuffer = inheritedAttributes.GetMandatoryAttribute<Attributes.InputBuffer>();
 
                 _stage = stage;
                 _size = inputBuffer.Max;
