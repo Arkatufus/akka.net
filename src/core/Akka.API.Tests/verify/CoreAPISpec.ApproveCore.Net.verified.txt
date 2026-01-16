@@ -331,7 +331,6 @@ namespace Akka.Actor
     }
     public class ActorSelection : Akka.Actor.ICanTell
     {
-        public ActorSelection() { }
         public ActorSelection(Akka.Actor.IActorRef anchor, Akka.Actor.SelectionPathElement[] path) { }
         public ActorSelection(Akka.Actor.IActorRef anchor, System.Collections.Generic.IEnumerable<string> elements) { }
         public ActorSelection(Akka.Actor.IActorRef anchor, string path) { }
@@ -339,11 +338,11 @@ namespace Akka.Actor
         public Akka.Actor.SelectionPathElement[] Path { get; }
         public string PathString { get; }
         protected bool Equals(Akka.Actor.ActorSelection other) { }
-        public override bool Equals(object obj) { }
+        public override bool Equals(object? obj) { }
         public override int GetHashCode() { }
         public System.Threading.Tasks.Task<Akka.Actor.IActorRef> ResolveOne(System.TimeSpan timeout) { }
         public System.Threading.Tasks.Task<Akka.Actor.IActorRef> ResolveOne(System.TimeSpan timeout, System.Threading.CancellationToken ct) { }
-        public void Tell(object message, Akka.Actor.IActorRef sender = null) { }
+        public void Tell(object message, Akka.Actor.IActorRef? sender = null) { }
         public override string ToString() { }
     }
     public class ActorSelectionMessage : Akka.Actor.IAutoReceivedMessage, Akka.Actor.IPossiblyHarmful, Akka.Actor.IWrappedMessage
@@ -352,7 +351,7 @@ namespace Akka.Actor
         public Akka.Actor.SelectionPathElement[] Elements { get; }
         public object Message { get; }
         public bool WildCardFanOut { get; }
-        public Akka.Actor.ActorSelectionMessage Copy(object message = null, Akka.Actor.SelectionPathElement[] elements = null, bool? wildCardFanOut = default) { }
+        public Akka.Actor.ActorSelectionMessage Copy(object? message = null, Akka.Actor.SelectionPathElement[]? elements = null, bool? wildCardFanOut = default) { }
         public override string ToString() { }
     }
     public sealed class ActorStarted : Akka.Actor.IActorTelemetryEvent, Akka.Actor.INoSerializationVerificationNeeded, Akka.Actor.INotInfluenceReceiveTimeout
@@ -1696,7 +1695,7 @@ namespace Akka.Actor
         public SelectChildName(string name) { }
         public string Name { get; }
         protected bool Equals(Akka.Actor.SelectChildName other) { }
-        public override bool Equals(object obj) { }
+        public override bool Equals(object? obj) { }
         public override int GetHashCode() { }
         public override string ToString() { }
     }
@@ -1705,7 +1704,7 @@ namespace Akka.Actor
         public SelectChildPattern(string patternStr) { }
         public string PatternStr { get; }
         protected bool Equals(Akka.Actor.SelectChildPattern other) { }
-        public override bool Equals(object obj) { }
+        public override bool Equals(object? obj) { }
         public override int GetHashCode() { }
         public override string ToString() { }
     }
@@ -1713,7 +1712,7 @@ namespace Akka.Actor
     {
         public static readonly Akka.Actor.SelectChildRecursive Instance;
         public SelectChildRecursive() { }
-        public override bool Equals(object obj) { }
+        public override bool Equals(object? obj) { }
         public override int GetHashCode() { }
         public override string ToString() { }
     }
@@ -1721,7 +1720,7 @@ namespace Akka.Actor
     {
         public static readonly Akka.Actor.SelectParent Instance;
         public SelectParent() { }
-        public override bool Equals(object obj) { }
+        public override bool Equals(object? obj) { }
         public override int GetHashCode() { }
         public override string ToString() { }
     }
